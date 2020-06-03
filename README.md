@@ -1,2 +1,3 @@
 # magnet
-Experimental library for working with mage as a build system
+Experimental library for working with [mage](https://magefile.org) as a build system.
+
