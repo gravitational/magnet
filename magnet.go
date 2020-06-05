@@ -3,7 +3,6 @@ package magnet
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -14,7 +13,6 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/opencontainers/go-digest"
-	"github.com/sirupsen/logrus"
 )
 
 var BuildLogDir string
@@ -24,8 +22,6 @@ func init() {
 }
 
 type Magnet struct {
-	logrus.FieldLogger
-
 	Vertex *client.Vertex
 	parent *Magnet
 	status chan *client.SolveStatus
@@ -48,7 +44,6 @@ func Root() *Magnet {
 				Completed: &now,
 			},
 		}
-		root.FieldLogger = root.newLogger("root", digest.FromString("root"))
 	})
 
 	return root
@@ -59,13 +54,12 @@ func Root() *Magnet {
 func Shutdown() {
 	if root != nil {
 		// Hack: give progressui enough time to process any queues status updates
-		time.Sleep(time.Second)
+		time.Sleep(100 * time.Millisecond)
 		close(root.status)
 	}
 
-	// Hack: give progressui enough time to shutdown
-	time.Sleep(10 * time.Second)
-	fmt.Fprintln(os.Stdout, "Shutdown complete")
+	// Hack: give progressui enough time to update the display when shutting down
+	time.Sleep(1000 * time.Millisecond)
 }
 
 func (m *Magnet) Clone(name string) *Magnet {
@@ -86,32 +80,27 @@ func (m *Magnet) Clone(name string) *Magnet {
 		fmt.Fprintln(os.Stderr, "dropped SolveStatus on Clone")
 	}
 
-	// only create loggers when cloned from root, so parallel tasks get there own log output
-	// TODO: We need a better way to indicate and name individual logs
-	var logger logrus.FieldLogger
-	logger = m.FieldLogger.WithField("vertex", vertex.Digest.Encoded()[:5])
-	if m.parent == nil {
-		logger = m.newLogger(name, vertex.Digest)
-	}
-
 	return &Magnet{
-		FieldLogger: logger,
-		Vertex:      vertex,
-		parent:      m,
+		Vertex: vertex,
+		parent: m,
 	}
 }
 
-func (m *Magnet) InitOutput() error {
-	if m.parent != nil {
-		return trace.BadParameter("Expect output to only be run on the root of the graph")
+func InitOutput() {
+	var c console.Console
+
+	if os.Getenv("DEBIAN_FRONTEND") != "noninteractive" {
+		if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
+			c = cn
+		}
 	}
 
-	var c console.Console
-	//if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
-	//	c = cn
-	//}
-
-	return trace.Wrap(progressui.DisplaySolveStatus(context.TODO(), m.Vertex.Name, c, os.Stdout, m.status))
+	go func() {
+		err := progressui.DisplaySolveStatus(context.TODO(), Root().Vertex.Name, c, os.Stdout, Root().status)
+		if err != nil {
+			panic(trace.DebugReport(err))
+		}
+	}()
 }
 
 func (m *Magnet) root() *Magnet {
@@ -137,26 +126,24 @@ func (m *Magnet) Complete(cached bool, err error) {
 	}
 }
 
-func (m *Magnet) newLogger(name string, vertex digest.Digest) logrus.FieldLogger {
-	err := os.MkdirAll(BuildLogDir, 0755)
-	if err != nil {
-		panic(trace.DebugReport(trace.ConvertSystemError(err)))
+// Printlnfallows writing log entries to the log output for the target.
+func (m *Magnet) Println(args ...interface{}) {
+	msg := fmt.Sprintln(args...)
+
+	m.root().status <- &client.SolveStatus{
+		Logs: []*client.VertexLog{
+			{
+				Vertex:    m.Vertex.Digest,
+				Stream:    STDOUT,
+				Data:      []byte(msg),
+				Timestamp: time.Now(),
+			},
+		},
 	}
+}
 
-	filename := filepath.Join(BuildLogDir, fmt.Sprintf("%v.%v", name, vertex.Encoded()))
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0755)
-	if err != nil {
-		panic(trace.DebugReport(trace.ConvertSystemError(err)))
-	}
-
-	out := io.MultiWriter(f, &streamWriter{
-		stream: STDOUT,
-		vertex: vertex,
-		status: m.root().status,
-	})
-
-	logger := logrus.New()
-	logger.SetOutput(out)
-
-	return logger.WithField("vertex", vertex.Encoded()[:5])
+// Printlnf allows writing log entries to the log output for the target.
+func (m *Magnet) Printlnf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	m.Println(msg)
 }

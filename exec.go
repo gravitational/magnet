@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/moby/buildkit/client"
 	"github.com/opencontainers/go-digest"
-	"github.com/sirupsen/logrus"
 )
 
 type ExecConfig struct {
@@ -28,6 +27,9 @@ func (m *Magnet) Exec() *ExecConfig {
 
 // Env is used to add environment variables to the execed commands environment.
 func (e *ExecConfig) Env(env map[string]string) *ExecConfig {
+	if e.env == nil {
+		e.env = make(map[string]string)
+	}
 	for k, v := range env {
 		e.env[k] = v
 	}
@@ -53,10 +55,12 @@ func (e *ExecConfig) Run(cmd string, args ...string) (bool, error) {
 		args[i] = os.Expand(args[i], expand)
 	}
 
-	// Create a new vertex for the running command, with the name being the command being executed
-	//vertex := e.magnet.Clone())
 	stdout, stderr := outStreams(e.magnet.Vertex.Digest, e.magnet.root().status)
-	e.magnet.Info("Running: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
+	e.magnet.Println("Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
+
+	if len(e.env) > 0 {
+		e.magnet.Println("Env: ", e.env)
+	}
 
 	ran, err := run(e.env, stdout, stderr, cmd, args...)
 
@@ -139,7 +143,6 @@ const STDOUT = 1
 const STDERR = 2
 
 type streamWriter struct {
-	logrus.FieldLogger
 	vertex digest.Digest
 	stream int //1 = stdout, 2 = stderr
 	status chan *client.SolveStatus
