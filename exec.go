@@ -1,6 +1,8 @@
 package magnet
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -25,13 +27,24 @@ func (m *Magnet) Exec() *ExecConfig {
 	}
 }
 
-// Env is used to add environment variables to the execed commands environment.
-func (e *ExecConfig) Env(env map[string]string) *ExecConfig {
+// SetEnv is used to add environment variables to the exec'd commands environment.
+func (e *ExecConfig) SetEnv(key, value string) *ExecConfig {
 	if e.env == nil {
 		e.env = make(map[string]string)
 	}
-	for k, v := range env {
-		e.env[k] = v
+
+	e.env[key] = value
+
+	return e
+}
+
+// SetEnvs is used to add environment variables to the execed commands environment.
+func (e *ExecConfig) SetEnvs(env map[string]string) *ExecConfig {
+	if e.env == nil {
+		e.env = make(map[string]string)
+	}
+	for key, value := range env {
+		e.env[key] = value
 	}
 
 	return e
@@ -39,7 +52,7 @@ func (e *ExecConfig) Env(env map[string]string) *ExecConfig {
 
 // Run runs the provided command
 // based on https://github.com/magefile/mage/blob/310e198ebd9303cd2c876d96e79de954915f60a7/sh/cmd.go#L92
-func (e *ExecConfig) Run(cmd string, args ...string) (bool, error) {
+func (e *ExecConfig) Run(ctx context.Context, cmd string, args ...string) (bool, error) {
 	expand := func(s string) string {
 		s2, ok := e.env[s]
 		if ok {
@@ -56,20 +69,28 @@ func (e *ExecConfig) Run(cmd string, args ...string) (bool, error) {
 	}
 
 	stdout, stderr := outStreams(e.magnet.Vertex.Digest, e.magnet.root().status)
-	e.magnet.Println("Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
 
 	if len(e.env) > 0 {
 		e.magnet.Println("Env: ", e.env)
 	}
 
-	ran, err := run(e.env, stdout, stderr, cmd, args...)
+	e.magnet.Println("Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
+	ran, err := run(ctx, e.env, stdout, stderr, cmd, args...)
 
 	return ran, trace.Wrap(err)
 }
 
+// Outout runs the provided command, returning the output
+// Note: output / trace won't be present in magnet logs
+func Output(ctx context.Context, cmd string, args ...string) (string, error) {
+	buf := &bytes.Buffer{}
+	_, err := run(ctx, nil, buf, buf, cmd, args...)
+	return strings.TrimSuffix(buf.String(), "\n"), err
+}
+
 // based on https://github.com/magefile/mage/blob/310e198ebd9303cd2c876d96e79de954915f60a7/sh/cmd.go#L126
-func run(env map[string]string, stdout, stderr io.Writer, cmd string, args ...string) (ran bool, err error) {
-	c := exec.Command(cmd, args...)
+func run(ctx context.Context, env map[string]string, stdout, stderr io.Writer, cmd string, args ...string) (ran bool, err error) {
+	c := exec.CommandContext(ctx, cmd, args...)
 	c.Env = os.Environ()
 
 	for k, v := range env {

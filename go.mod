@@ -13,6 +13,6 @@ require (
 	github.com/gravitational/trace v1.1.11
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/moby/buildkit v0.7.1
+	github.com/olekukonko/tablewriter v0.0.4
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/sirupsen/logrus v1.4.2
 )

@@ -25,6 +25,8 @@ type Magnet struct {
 	Vertex *client.Vertex
 	parent *Magnet
 	status chan *client.SolveStatus
+
+	statusLogger *SolveStatusLogger
 }
 
 var root *Magnet
@@ -36,14 +38,17 @@ func Root() *Magnet {
 	rootOnce.Do(func() {
 		now := time.Now()
 		root = &Magnet{
-			status: make(chan *client.SolveStatus, statusChanSize),
+			//status: make(chan *client.SolveStatus, statusChanSize),
 			Vertex: &client.Vertex{
 				Digest:    digest.FromString("root"),
 				Name:      fmt.Sprint("Logs: ", BuildLogDir),
 				Started:   &now,
 				Completed: &now,
 			},
+			statusLogger: newSolveStatusLogger(BuildLogDir),
 		}
+
+		root.status = root.statusLogger.source
 	})
 
 	return root
@@ -74,11 +79,7 @@ func (m *Magnet) Clone(name string) *Magnet {
 		Vertexes: []*client.Vertex{vertex},
 	}
 
-	select {
-	case m.root().status <- status:
-	default:
-		fmt.Fprintln(os.Stderr, "dropped SolveStatus on Clone")
-	}
+	m.root().status <- status
 
 	return &Magnet{
 		Vertex: vertex,
@@ -96,7 +97,13 @@ func InitOutput() {
 	}
 
 	go func() {
-		err := progressui.DisplaySolveStatus(context.TODO(), Root().Vertex.Name, c, os.Stdout, Root().status)
+		err := progressui.DisplaySolveStatus(
+			context.TODO(),
+			Root().Vertex.Name,
+			c,
+			os.Stdout,
+			Root().statusLogger.destination,
+		)
 		if err != nil {
 			panic(trace.DebugReport(err))
 		}
