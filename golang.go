@@ -250,11 +250,17 @@ func (m *GolangConfigBuild) SetEnvs(envs map[string]string) *GolangConfigBuild {
 }
 
 func (m *GolangConfigBuild) SetGOOS(value string) *GolangConfigBuild {
+	if m.Env == nil {
+		m.Env = make(map[string]string)
+	}
 	m.Env["GOOS"] = value
 	return m
 }
 
 func (m *GolangConfigBuild) SetGOARCH(value string) *GolangConfigBuild {
+	if m.Env == nil {
+		m.Env = make(map[string]string)
+	}
 	m.Env["GOARCH"] = value
 	return m
 }
@@ -485,11 +491,17 @@ func (m *GolangConfigTest) SetEnvs(envs map[string]string) *GolangConfigTest {
 }
 
 func (m *GolangConfigTest) SetGOOS(value string) *GolangConfigTest {
+	if m.Env == nil {
+		m.Env = make(map[string]string)
+	}
 	m.Env["GOOS"] = value
 	return m
 }
 
 func (m *GolangConfigTest) SetGOARCH(value string) *GolangConfigTest {
+	if m.Env == nil {
+		m.Env = make(map[string]string)
+	}
 	m.Env["GOARCH"] = value
 	return m
 }
