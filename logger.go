@@ -59,7 +59,7 @@ func (s *SolveStatusLogger) tee() {
 		// logging of secrets
 		for i := range status.Logs {
 			for _, value := range EnvVars {
-				if value.Secret {
+				if value.Secret && len(value.Value) > 0 {
 					status.Logs[i].Data = []byte(strings.ReplaceAll(string(status.Logs[i].Data), value.Value, "<redacted>"))
 				}
 			}

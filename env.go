@@ -17,6 +17,11 @@ func E(e EnvVar) string {
 	if e.Key == "" {
 		panic("Key shouldn't be empty")
 	}
+
+	if e.Secret && len(e.Default) > 0 {
+		panic("Secrets shouldn't be embedded with defaults")
+	}
+
 	if EnvVars == nil {
 		EnvVars = make(map[string]EnvVar)
 	}
