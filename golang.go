@@ -135,12 +135,6 @@ type GolangConfigBuild struct {
 
 func (m *Magnet) GolangBuild() *GolangConfigBuild {
 	return &GolangConfigBuild{
-		GolangConfigCommon: GolangConfigCommon{
-			Env: map[string]string{
-				"XDG_CACHE_HOME": "/go/src/github.com/gravitational/wormhole/build/cache",
-				"GOCACHE":        "/go/src/github.com/gravitational/wormhole/build/cache/go",
-			},
-		},
 		TrimPath: true,
 		magnet:   m,
 	}
@@ -148,12 +142,6 @@ func (m *Magnet) GolangBuild() *GolangConfigBuild {
 
 func (m *Magnet) GolangTest() *GolangConfigTest {
 	return &GolangConfigTest{
-		GolangConfigCommon: GolangConfigCommon{
-			Env: map[string]string{
-				"XDG_CACHE_HOME": "/go/src/github.com/gravitational/wormhole/build/cache",
-				"GOCACHE":        "/go/src/github.com/gravitational/wormhole/build/cache/go",
-			},
-		},
 		magnet: m,
 	}
 }
@@ -305,6 +293,8 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
 		SetGID(fmt.Sprint(os.Getgid())).
+		SetEnv("XDG_CACHE_HOME", filepath.Join(wdTarget, "build/cache")).
+		SetEnv("GOCACHE", filepath.Join(wdTarget, "build/cache/go")).
 		AddVolume(fmt.Sprint(wd, ":", wdTarget, ":delegated")).SetWorkDir(wdTarget)
 
 	cmd.Env = m.Env
@@ -385,6 +375,8 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
 		SetGID(fmt.Sprint(os.Getgid())).
+		SetEnv("XDG_CACHE_HOME", filepath.Join(wdTarget, "build/cache")).
+		SetEnv("GOCACHE", filepath.Join(wdTarget, "build/cache/go")).
 		AddVolume(fmt.Sprint(wd, ":", wdTarget, ":delegated")).SetWorkDir(wdTarget)
 
 	cmd.Env = m.Env
