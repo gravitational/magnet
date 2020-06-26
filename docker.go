@@ -44,7 +44,8 @@ func (m *Magnet) DockerBuild() *DockerConfigBuild {
 		DockerConfigCommon: DockerConfigCommon{
 			magnet: m,
 			Env: map[string]string{
-				"DOCKER_BUILDKIT": "1",
+				"DOCKER_BUILDKIT":   "1",
+				"PROGRESS_NO_TRUNC": "1",
 			},
 		},
 		Pull:     true,
