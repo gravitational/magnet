@@ -21,5 +21,5 @@ func Hash() string {
 		panic(trace.DebugReport(err))
 	}
 
-	return longTag
+	return hash
 }
