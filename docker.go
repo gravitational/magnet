@@ -203,6 +203,18 @@ func (m *DockerConfigRun) SetEnv(key, value string) *DockerConfigRun {
 	return m
 }
 
+func (m *DockerConfigRun) SetEnvs(envs map[string]string) *DockerConfigRun {
+	if m.Env == nil {
+		m.Env = make(map[string]string)
+	}
+
+	for key, value := range envs {
+		m.Env[key] = value
+	}
+
+	return m
+}
+
 func (m *DockerConfigRun) SetDetach(detach bool) *DockerConfigRun {
 	m.Detach = detach
 	return m
