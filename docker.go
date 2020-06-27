@@ -3,8 +3,15 @@ package magnet
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
+	"github.com/docker/docker/pkg/archive"
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
+	"github.com/mholt/archiver/v3"
 )
 
 type DockerConfigCommon struct {
@@ -33,6 +40,15 @@ type DockerConfigBuild struct {
 	// CacheFrom is a list of images to consider as cache sources
 	// https://andrewlock.net/caching-docker-layers-on-serverless-build-hosts-with-multi-stage-builds---target,-and---cache-from/
 	CacheFrom []string
+
+	// ContextFiles are paths to add to the docker context sent to the daemon
+	ContextFiles []string
+
+	// IncludePaths
+	IncludePaths []string
+
+	// ExcludePatterns
+	ExcludePatterns []string
 
 	// TODO: Support custom build context behaviour (IE a whitelist type approach)
 	// and possibly an implementation that scans and finds all go files ignoring common directories (like .git)
@@ -120,6 +136,16 @@ func (m *DockerConfigBuild) SetTarget(target string) *DockerConfigBuild {
 	return m
 }
 
+func (m *DockerConfigBuild) AddContextPath(path string) *DockerConfigBuild {
+	m.ContextFiles = append(m.ContextFiles, path)
+	return m
+}
+
+func (m *DockerConfigBuild) AddContextPaths(paths []string) *DockerConfigBuild {
+	m.ContextFiles = append(m.ContextFiles, paths...)
+	return m
+}
+
 func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error {
 	args := []string{"build"}
 
@@ -151,9 +177,110 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 		args = append(args, "-t", value)
 	}
 
-	if len(m.Dockerfile) > 0 {
-		args = append(args, "-f", m.Dockerfile)
+	// To minimize the context passed to docker, we'll copy only the needed context files
+	// Right now this is very hacky, because Docker itself doesn't really expose a way to do this
+	// so we copy the files we're interested into a temp dir, that is then used by docker
+	// TODO: Is there a less hacky way to do this.
+	if len(m.IncludePaths) != 0 || len(m.ExcludePatterns) != 0 {
+		archiveOptions := &archive.TarOptions{
+			Compression:     archive.Gzip,
+			ExcludePatterns: append(m.ExcludePatterns, "build/tmp/*"),
+			IncludeFiles:    m.IncludePaths,
+		}
+
+		tarArchive, err := archive.TarWithOptions(contextPath, archiveOptions)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		contextTempDir, err := ioutil.TempDir("build/tmp", "docker-context")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		contextTarPath := filepath.Join(contextTempDir, "context.tar.gz")
+		contextExtractPath := filepath.Join(contextTempDir, "extract")
+
+		err = os.MkdirAll(contextTempDir, 0755)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		archiveFH, err := os.Create(contextTarPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		written, err := io.Copy(archiveFH, tarArchive)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		m.magnet.Println("Wrote ", humanize.Bytes(uint64(written)), " bytes to ", contextTarPath)
+
+		archiveFH.Close()
+		tarArchive.Close()
+
+		err = archiver.NewTarGz().Unarchive(contextTarPath, contextExtractPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		contextPath = filepath.Join(contextTempDir, "extract")
+
+		if len(m.Dockerfile) > 0 {
+			_, err = m.magnet.Exec().Run(context.TODO(), "cp", m.Dockerfile, filepath.Join(contextExtractPath, "Dockerfile"))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			_, err = m.magnet.Exec().Run(context.TODO(), "cp", "Dockerfile", filepath.Join(contextExtractPath, "Dockerfile"))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	} else {
+		if len(m.Dockerfile) > 0 {
+			args = append(args, "-f", m.Dockerfile)
+		}
 	}
+
+	// TODO this is pretty nasty to create a whitelist approach
+	// Use an archiver to tar up the whitelist of files, and re-extract to a temp directory, to
+	// be re-tarred by Docker to pass to the docker daemon. But works as a starting point to
+	// keep the docker context as minimal as possible.
+	/*
+		if len(m.ContextFiles) > 0 {
+			if len(m.Dockerfile) > 0 {
+				m.ContextFiles = append(m.ContextFiles, m.Dockerfile)
+			} else {
+				m.ContextFiles = append(m.ContextFiles, "Dockerfile")
+			}
+
+			contextDir, err := ioutil.TempDir("", "docker-context")
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			//defer os.RemoveAll(contextDir)
+
+			tar := archiver.NewTarGz()
+
+			err = tar.Archive(m.ContextFiles, filepath.Join(contextDir, "context.tar.gz"))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			err = tar.Close()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			tar = archiver.NewTarGz()
+			tar.Unarchive(filepath.Join(contextDir, "context.tar.gz"), filepath.Join(contextDir, "context"))
+
+			contextPath = filepath.Join(contextDir, "context")
+		}*/
 
 	args = append(args, contextPath)
 

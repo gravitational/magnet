@@ -41,7 +41,7 @@ func Root() *Magnet {
 			//status: make(chan *client.SolveStatus, statusChanSize),
 			Vertex: &client.Vertex{
 				Digest:    digest.FromString("root"),
-				Name:      fmt.Sprint("Logs: ", BuildLogDir),
+				Name:      fmt.Sprint("Version: ", Version(), " Logs: ", BuildLogDir),
 				Started:   &now,
 				Completed: &now,
 			},
