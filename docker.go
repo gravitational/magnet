@@ -154,7 +154,7 @@ func (m *DockerConfigBuild) AddContextPaths(paths []string) *DockerConfigBuild {
 // - Destination will be made relative to the root directory of the context automatically
 // - An unset Destination will use the same relative struct as source. Use "/" to copy to the root.
 // - include/exclude patterns are optional, and all files will be copied when unset.
-func (m *DockerConfigBuild) CopyToContext(src, dst string, includePatterns, excludePatterns []string) {
+func (m *DockerConfigBuild) CopyToContext(src, dst string, includePatterns, excludePatterns []string) *DockerConfigBuild {
 	c := cp.Config{
 		Source:          src,
 		Destination:     dst,
@@ -167,6 +167,8 @@ func (m *DockerConfigBuild) CopyToContext(src, dst string, includePatterns, excl
 	}
 
 	m.ContextCopyConfigs = append(m.ContextCopyConfigs, c)
+
+	return m
 }
 
 func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error {
