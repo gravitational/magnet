@@ -66,7 +66,7 @@ func (c Config) copyDir(src, dst string) error {
 
 		fileInfo, err := os.Stat(sourcePath)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err).AddField("src", sourcePath)
 		}
 
 		stat, ok := fileInfo.Sys().(*syscall.Stat_t)
@@ -77,33 +77,37 @@ func (c Config) copyDir(src, dst string) error {
 		switch fileInfo.Mode() & os.ModeType {
 		case os.ModeDir:
 			if err := CreateIfNotExists(destPath, 0755); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 
 			if err := c.copyDir(sourcePath, destPath); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		case os.ModeSymlink:
 			if err := CopySymLink(sourcePath, destPath); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		default:
 			if err := CopyFile(sourcePath, destPath); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		}
 
 		// Only root is able to chown to a different user
 		if os.Getuid() == 0 {
 			if err := os.Lchown(destPath, int(stat.Uid), int(stat.Gid)); err != nil {
-				return err
+				return trace.Wrap(err).AddFields(map[string]interface{}{
+					"src": sourcePath,
+					"uid": stat.Uid,
+					"gid": stat.Gid,
+				})
 			}
 		}
 
 		isSymlink := entry.Mode()&os.ModeSymlink != 0
 		if !isSymlink {
 			if err := os.Chmod(destPath, entry.Mode()); err != nil {
-				return trace.ConvertSystemError(err)
+				return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", destPath)
 			}
 		}
 	}
@@ -117,7 +121,7 @@ func (c Config) copyDir(src, dst string) error {
 func CopyFile(src, dst string) error {
 	sfi, err := os.Stat(src)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return trace.Wrap(trace.ConvertSystemError(err)).AddField("src", src)
 	}
 
 	if !sfi.Mode().IsRegular() {
@@ -130,7 +134,7 @@ func CopyFile(src, dst string) error {
 	dfi, err := os.Stat(dst)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return trace.ConvertSystemError(err)
+			return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 		}
 	} else {
 		if !(dfi.Mode().IsRegular()) {
@@ -147,7 +151,7 @@ func CopyFile(src, dst string) error {
 
 	in, err := os.Open(src)
 	if err != nil {
-		return trace.Wrap(err).AddFields(map[string]interface{}{
+		return trace.Wrap(trace.ConvertSystemError(err)).AddFields(map[string]interface{}{
 			"src": src,
 			"dst": dst,
 		})
@@ -157,17 +161,17 @@ func CopyFile(src, dst string) error {
 
 	out, err := os.Create(dst)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
 
 	_, err = io.Copy(out, in)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
 
 	err = out.Sync()
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
 
 	return trace.Wrap(out.Close())

@@ -220,7 +220,10 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 
 		if len(m.Dockerfile) > 0 {
 			if filepath.IsAbs(m.Dockerfile) {
-				err = cp.Copy(cp.Config{Source: m.Dockerfile, Destination: filepath.Join(contextPath, "Dockerfile")})
+				err = cp.Copy(cp.Config{
+					Source:      m.Dockerfile,
+					Destination: filepath.Join(newContextPath, "Dockerfile"),
+				})
 				if err != nil {
 					return trace.Wrap(err)
 				}
