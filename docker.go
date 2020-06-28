@@ -203,14 +203,14 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 	}
 
 	if len(m.ContextCopyConfigs) != 0 {
-		contextPath, err := ioutil.TempDir("", "docker-context")
+		newContextPath, err := ioutil.TempDir("", "docker-context")
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		for _, c := range m.ContextCopyConfigs {
 			// We want any copy operation to be relative to our context destination directory
-			c.Destination = filepath.Join(contextPath, c.Destination)
+			c.Destination = filepath.Join(newContextPath, c.Destination)
 
 			err = cp.Copy(c)
 			if err != nil {
@@ -219,16 +219,32 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 		}
 
 		if len(m.Dockerfile) > 0 {
-			err = cp.Copy(cp.Config{Source: m.Dockerfile, Destination: filepath.Join(contextPath, "Dockerfile")})
-			if err != nil {
-				return trace.Wrap(err)
+			if filepath.IsAbs(m.Dockerfile) {
+				err = cp.Copy(cp.Config{Source: m.Dockerfile, Destination: filepath.Join(contextPath, "Dockerfile")})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			} else {
+				err = cp.Copy(cp.Config{
+					Source:      filepath.Join(contextPath, m.Dockerfile),
+					Destination: filepath.Join(newContextPath, "Dockerfile"),
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
+
 		} else {
-			err = cp.Copy(cp.Config{Source: "Dockerfile", Destination: filepath.Join(contextPath, "Dockerfile")})
+			err = cp.Copy(cp.Config{
+				Source:      filepath.Join(contextPath, "Dockerfile"),
+				Destination: filepath.Join(newContextPath, "Dockerfile"),
+			})
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
+
+		contextPath = newContextPath
 	} else {
 		if len(m.Dockerfile) > 0 {
 			args = append(args, "-f", m.Dockerfile)
