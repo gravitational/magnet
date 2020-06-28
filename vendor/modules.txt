@@ -21,8 +21,6 @@ github.com/Microsoft/hcsshim/internal/timeout
 github.com/Microsoft/hcsshim/internal/vmcompute
 github.com/Microsoft/hcsshim/internal/wclayer
 github.com/Microsoft/hcsshim/osversion
-# github.com/andybalholm/brotli v0.0.0-20190621154722-5f990b63d2d6
-github.com/andybalholm/brotli
 # github.com/containerd/cgroups v0.0.0-20200625214700-544d8ea40afe
 ## explicit
 github.com/containerd/cgroups/stats/v1
@@ -42,34 +40,13 @@ github.com/containerd/containerd/services/content/contentserver
 github.com/containerd/containerd/sys
 # github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb
 ## explicit
-github.com/containerd/continuity/fs
 github.com/containerd/continuity/sysx
 # github.com/docker/distribution v0.0.0-20200223014041-6b972e50feee
 github.com/docker/distribution/digestset
 github.com/docker/distribution/reference
 # github.com/docker/docker v1.13.1 => github.com/docker/docker v17.12.0-ce-rc1.0.20200310163718-4634ce647cf2+incompatible
 ## explicit
-github.com/docker/docker/pkg/archive
 github.com/docker/docker/pkg/fileutils
-github.com/docker/docker/pkg/idtools
-github.com/docker/docker/pkg/ioutils
-github.com/docker/docker/pkg/longpath
-github.com/docker/docker/pkg/mount
-github.com/docker/docker/pkg/pools
-github.com/docker/docker/pkg/system
-# github.com/docker/go-units v0.4.0
-github.com/docker/go-units
-# github.com/dsnet/compress v0.0.1
-## explicit
-github.com/dsnet/compress
-github.com/dsnet/compress/bzip2
-github.com/dsnet/compress/bzip2/internal/sais
-github.com/dsnet/compress/internal
-github.com/dsnet/compress/internal/errors
-github.com/dsnet/compress/internal/prefix
-# github.com/dustin/go-humanize v0.0.0-20171111073723-bb3d318650d4
-## explicit
-github.com/dustin/go-humanize
 # github.com/gofrs/flock v0.7.1
 ## explicit
 github.com/gofrs/flock
@@ -82,9 +59,6 @@ github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
 github.com/gogo/protobuf/types
-# github.com/golang/gddo v0.0.0-20190419222130-af0f2af80721
-github.com/golang/gddo/httputil
-github.com/golang/gddo/httputil/header
 # github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 ## explicit
 github.com/golang/groupcache/lru
@@ -95,9 +69,6 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/golang/snappy v0.0.1
-## explicit
-github.com/golang/snappy
 # github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 ## explicit
 github.com/google/shlex
@@ -106,32 +77,16 @@ github.com/google/shlex
 github.com/gravitational/trace
 # github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc
-# github.com/hashicorp/golang-lru v0.5.4
-## explicit
 # github.com/jaguilar/vt100 v0.0.0-20150826170717-2703a27b14ea => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
 github.com/jaguilar/vt100
 # github.com/jonboulle/clockwork v0.1.0
 ## explicit
 github.com/jonboulle/clockwork
-# github.com/klauspost/compress v1.9.2
-github.com/klauspost/compress/flate
-github.com/klauspost/compress/fse
-github.com/klauspost/compress/huff0
-github.com/klauspost/compress/snappy
-github.com/klauspost/compress/zstd
-github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/klauspost/pgzip v1.2.1
-github.com/klauspost/pgzip
 # github.com/konsorten/go-windows-terminal-sequences v1.0.3
 github.com/konsorten/go-windows-terminal-sequences
 # github.com/mattn/go-runewidth v0.0.9
 ## explicit
 github.com/mattn/go-runewidth
-# github.com/mholt/archiver v3.1.1+incompatible
-## explicit
-# github.com/mholt/archiver/v3 v3.3.0
-## explicit
-github.com/mholt/archiver/v3
 # github.com/moby/buildkit v0.7.1
 ## explicit
 github.com/moby/buildkit/api/services/control
@@ -159,9 +114,6 @@ github.com/moby/buildkit/util/system
 # github.com/morikuni/aec v1.0.0
 ## explicit
 github.com/morikuni/aec
-# github.com/nwaples/rardecode v1.1.0
-## explicit
-github.com/nwaples/rardecode
 # github.com/olekukonko/tablewriter v0.0.4
 ## explicit
 github.com/olekukonko/tablewriter
@@ -171,18 +123,11 @@ github.com/opencontainers/go-digest
 # github.com/opencontainers/image-spec v1.0.1
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
-# github.com/opencontainers/runc v1.0.0-rc9.0.20200221051241-688cf6d43cc4
-github.com/opencontainers/runc/libcontainer/system
-github.com/opencontainers/runc/libcontainer/user
 # github.com/opentracing/opentracing-go v1.1.0
 ## explicit
 github.com/opentracing/opentracing-go
 github.com/opentracing/opentracing-go/ext
 github.com/opentracing/opentracing-go/log
-# github.com/pierrec/lz4 v2.5.2+incompatible
-## explicit
-github.com/pierrec/lz4
-github.com/pierrec/lz4/internal/xxh32
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
 # github.com/sirupsen/logrus v1.6.0
@@ -194,15 +139,6 @@ github.com/tonistiigi/fsutil
 github.com/tonistiigi/fsutil/types
 # github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea
 github.com/tonistiigi/units
-# github.com/ulikunitz/xz v0.5.7
-## explicit
-github.com/ulikunitz/xz
-github.com/ulikunitz/xz/internal/hash
-github.com/ulikunitz/xz/internal/xlog
-github.com/ulikunitz/xz/lzma
-# github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
-## explicit
-github.com/xi2/xz
 # go.opencensus.io v0.22.4
 ## explicit
 go.opencensus.io

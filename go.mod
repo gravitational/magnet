@@ -12,32 +12,22 @@ require (
 	github.com/containerd/cgroups v0.0.0-20200625214700-544d8ea40afe // indirect
 	github.com/containerd/console v1.0.0
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
-	github.com/docker/docker v1.13.1
-	github.com/dsnet/compress v0.0.1 // indirect
-	github.com/dustin/go-humanize v0.0.0-20171111073723-bb3d318650d4
+	github.com/docker/docker v1.13.1 // indirect
 	github.com/gofrs/flock v0.7.1 // indirect
 	github.com/gogo/googleapis v1.4.0 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
-	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gravitational/trace v1.1.11
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/mholt/archiver v3.1.1+incompatible // indirect
-	github.com/mholt/archiver/v3 v3.3.0
 	github.com/moby/buildkit v0.7.1
 	github.com/morikuni/aec v1.0.0 // indirect
-	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opentracing/opentracing-go v1.1.0 // indirect
-	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/tonistiigi/fsutil v0.0.0-20200512175118-ae3a8d753069 // indirect
-	github.com/ulikunitz/xz v0.5.7 // indirect
-	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344 // indirect
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208 // indirect

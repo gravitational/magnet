@@ -3,15 +3,11 @@ package magnet
 import (
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
-	"github.com/docker/docker/pkg/archive"
-	"github.com/dustin/go-humanize"
+	"github.com/gravitational/magnet/pkg/cp"
 	"github.com/gravitational/trace"
-	"github.com/mholt/archiver/v3"
 )
 
 type DockerConfigCommon struct {
@@ -45,10 +41,13 @@ type DockerConfigBuild struct {
 	ContextFiles []string
 
 	// IncludePaths
-	IncludePaths []string
+	//IncludePaths []string
 
 	// ExcludePatterns
-	ExcludePatterns []string
+	//ExcludePatterns []string
+
+	// ContextCopyConfigs is a list of copy operations to build a custom docker context
+	ContextCopyConfigs []cp.Config
 
 	// TODO: Support custom build context behaviour (IE a whitelist type approach)
 	// and possibly an implementation that scans and finds all go files ignoring common directories (like .git)
@@ -136,6 +135,7 @@ func (m *DockerConfigBuild) SetTarget(target string) *DockerConfigBuild {
 	return m
 }
 
+/*
 func (m *DockerConfigBuild) AddContextPath(path string) *DockerConfigBuild {
 	m.ContextFiles = append(m.ContextFiles, path)
 	return m
@@ -144,6 +144,29 @@ func (m *DockerConfigBuild) AddContextPath(path string) *DockerConfigBuild {
 func (m *DockerConfigBuild) AddContextPaths(paths []string) *DockerConfigBuild {
 	m.ContextFiles = append(m.ContextFiles, paths...)
 	return m
+}
+*/
+
+// CopyToContext creates a new docker context directory structure, including only the files that match
+// the provided glob patterns.
+// Notes:
+// - Can be called multiple times
+// - Destination will be made relative to the root directory of the context automatically
+// - An unset Destination will use the same relative struct as source. Use "/" to copy to the root.
+// - include/exclude patterns are optional, and all files will be copied when unset.
+func (m *DockerConfigBuild) CopyToContext(src, dst string, includePatterns, excludePatterns []string) {
+	c := cp.Config{
+		Source:          src,
+		Destination:     dst,
+		IncludePatterns: includePatterns,
+		ExcludePatterns: excludePatterns,
+	}
+
+	if len(dst) == 0 {
+		c.Destination = src
+	}
+
+	m.ContextCopyConfigs = append(m.ContextCopyConfigs, c)
 }
 
 func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error {
@@ -177,11 +200,44 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 		args = append(args, "-t", value)
 	}
 
+	if len(m.ContextCopyConfigs) != 0 {
+		contextPath, err := ioutil.TempDir("", "docker-context")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, c := range m.ContextCopyConfigs {
+			// We want any copy operation to be relative to our context destination directory
+			c.Destination = filepath.Join(contextPath, c.Destination)
+
+			err = cp.Copy(c)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if len(m.Dockerfile) > 0 {
+			err = cp.Copy(cp.Config{Source: m.Dockerfile, Destination: filepath.Join(contextPath, "Dockerfile")})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			err = cp.Copy(cp.Config{Source: "Dockerfile", Destination: filepath.Join(contextPath, "Dockerfile")})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	} else {
+		if len(m.Dockerfile) > 0 {
+			args = append(args, "-f", m.Dockerfile)
+		}
+	}
+
 	// To minimize the context passed to docker, we'll copy only the needed context files
 	// Right now this is very hacky, because Docker itself doesn't really expose a way to do this
 	// so we copy the files we're interested into a temp dir, that is then used by docker
 	// TODO: Is there a less hacky way to do this.
-	if len(m.IncludePaths) != 0 || len(m.ExcludePatterns) != 0 {
+	/*if len(m.IncludePaths) != 0 || len(m.ExcludePatterns) != 0 {
 		archiveOptions := &archive.TarOptions{
 			Compression:     archive.Gzip,
 			ExcludePatterns: append(m.ExcludePatterns, "build/tmp/*"),
@@ -244,6 +300,7 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 			args = append(args, "-f", m.Dockerfile)
 		}
 	}
+	*/
 
 	// TODO this is pretty nasty to create a whitelist approach
 	// Use an archiver to tar up the whitelist of files, and re-extract to a temp directory, to
