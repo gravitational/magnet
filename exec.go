@@ -18,6 +18,7 @@ import (
 type ExecConfig struct {
 	magnet *Magnet
 	env    map[string]string
+	wd     string
 }
 
 // Exec is used to build and run a command on the system.
@@ -50,6 +51,13 @@ func (e *ExecConfig) SetEnvs(env map[string]string) *ExecConfig {
 	return e
 }
 
+// SetWD is used to set the working directory of the command to be executed
+func (e *ExecConfig) SetWD(wd string) *ExecConfig {
+	e.wd = wd
+
+	return e
+}
+
 // Run runs the provided command
 // based on https://github.com/magefile/mage/blob/310e198ebd9303cd2c876d96e79de954915f60a7/sh/cmd.go#L92
 func (e *ExecConfig) Run(ctx context.Context, cmd string, args ...string) (bool, error) {
@@ -71,11 +79,12 @@ func (e *ExecConfig) Run(ctx context.Context, cmd string, args ...string) (bool,
 	stdout, stderr := outStreams(e.magnet.Vertex.Digest, e.magnet.root().status)
 
 	if len(e.env) > 0 {
-		e.magnet.Println("Env: ", e.env)
+		e.magnet.Println("Env: ", e.env, " Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
+	} else {
+		e.magnet.Println("Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
 	}
 
-	e.magnet.Println("Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
-	ran, err := run(ctx, e.env, stdout, stderr, cmd, args...)
+	ran, err := run(ctx, e.env, stdout, stderr, e.wd, cmd, args...)
 
 	return ran, trace.Wrap(err)
 }
@@ -84,12 +93,12 @@ func (e *ExecConfig) Run(ctx context.Context, cmd string, args ...string) (bool,
 // Note: output / trace won't be present in magnet logs
 func Output(ctx context.Context, cmd string, args ...string) (string, error) {
 	buf := &bytes.Buffer{}
-	_, err := run(ctx, nil, buf, buf, cmd, args...)
+	_, err := run(ctx, nil, buf, buf, "", cmd, args...)
 	return strings.TrimSuffix(buf.String(), "\n"), err
 }
 
 // based on https://github.com/magefile/mage/blob/310e198ebd9303cd2c876d96e79de954915f60a7/sh/cmd.go#L126
-func run(ctx context.Context, env map[string]string, stdout, stderr io.Writer, cmd string, args ...string) (ran bool, err error) {
+func run(ctx context.Context, env map[string]string, stdout, stderr io.Writer, wd, cmd string, args ...string) (ran bool, err error) {
 	c := exec.CommandContext(ctx, cmd, args...)
 	c.Env = os.Environ()
 
@@ -100,6 +109,7 @@ func run(ctx context.Context, env map[string]string, stdout, stderr io.Writer, c
 	c.Stderr = stderr
 	c.Stdout = stdout
 	c.Stdin = os.Stdin
+	c.Dir = wd
 
 	err = c.Run()
 
