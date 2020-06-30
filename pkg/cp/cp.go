@@ -159,7 +159,7 @@ func CopyFile(src, dst string) error {
 
 	defer in.Close()
 
-	out, err := os.OpenFile(dst, os.O_CREATE, dfi.Mode())
+	out, err := os.OpenFile(dst, os.O_CREATE, sfi.Mode())
 	if err != nil {
 		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
