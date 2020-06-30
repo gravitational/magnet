@@ -284,14 +284,14 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		panic(err)
 	}
 
-	wdTarget := "/go"
+	wdTarget := "/gopath"
 
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
 		rel, err := filepath.Rel(gopath, wd)
 		// err == we're not inside the current GOPATH, don't change the mount
 		if err == nil {
-			wdTarget = filepath.Join("/go", rel)
+			wdTarget = filepath.Join("/gopath", rel)
 		}
 	}
 
@@ -365,14 +365,14 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		panic(err)
 	}
 
-	wdTarget := "/go"
+	wdTarget := "/gopath"
 
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
 		rel, err := filepath.Rel(gopath, wd)
 		// err == we're not inside the current GOPATH, don't change the mount
 		if err == nil {
-			wdTarget = filepath.Join("/go", rel)
+			wdTarget = filepath.Join("/gopath", rel)
 		}
 	}
 
