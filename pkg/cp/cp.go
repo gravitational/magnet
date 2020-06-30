@@ -159,7 +159,7 @@ func CopyFile(src, dst string) error {
 
 	defer in.Close()
 
-	out, err := os.OpenFile(dst, os.O_CREATE, sfi.Mode())
+	out, err := os.Create(dst)
 	if err != nil {
 		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
@@ -174,7 +174,13 @@ func CopyFile(src, dst string) error {
 		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
 
-	return trace.Wrap(out.Close())
+	err = out.Close()
+	if err != nil {
+		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
+	}
+
+	err = os.Chmod(dst, sfi.Mode())
+	return trace.Wrap(err)
 }
 
 func CopySymLink(source, dest string) error {
