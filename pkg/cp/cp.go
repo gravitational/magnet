@@ -76,7 +76,7 @@ func (c Config) copyDir(src, dst string) error {
 
 		switch fileInfo.Mode() & os.ModeType {
 		case os.ModeDir:
-			if err := CreateIfNotExists(destPath, 0755); err != nil {
+			if err := CreateIfNotExists(destPath, fileInfo.Mode()); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -159,7 +159,7 @@ func CopyFile(src, dst string) error {
 
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_CREATE, dfi.Mode())
 	if err != nil {
 		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
