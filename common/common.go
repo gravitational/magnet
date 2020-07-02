@@ -15,13 +15,17 @@ package common
 
 import (
 	"os"
+	"sort"
 
 	"github.com/gravitational/magnet"
+	"github.com/magefile/mage/mg"
 	"github.com/olekukonko/tablewriter"
 )
 
+var Help mg.Namespace
+
 // HelpEnvs lists environment variables that can override build options
-func HelpEnvs() error {
+func (Help) Envs() error {
 	var result [][]string
 
 	for key, value := range magnet.EnvVars {
@@ -30,8 +34,11 @@ func HelpEnvs() error {
 		} else {
 			result = append(result, []string{key, value.Value, value.Default, value.Short})
 		}
-
 	}
+
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i][0] < result[j][0]
+	})
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"Key", "Value", "Default", "Short Description"})

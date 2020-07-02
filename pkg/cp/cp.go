@@ -179,8 +179,7 @@ func CopyFile(src, dst string) error {
 		return trace.Wrap(trace.ConvertSystemError(err)).AddField("dst", dst)
 	}
 
-	err = os.Chmod(dst, sfi.Mode())
-	return trace.Wrap(err)
+	return trace.Wrap(os.Chmod(dst, sfi.Mode()))
 }
 
 func CopySymLink(source, dest string) error {

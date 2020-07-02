@@ -20,6 +20,7 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gravitational/trace v1.1.11
 	github.com/jonboulle/clockwork v0.1.0 // indirect
+	github.com/magefile/mage v1.9.0
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/moby/buildkit v0.7.1
 	github.com/morikuni/aec v1.0.0 // indirect
