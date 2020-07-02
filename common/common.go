@@ -22,7 +22,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-var Help mg.Namespace
+type Help mg.Namespace
 
 // HelpEnvs lists environment variables that can override build options
 func (Help) Envs() error {
