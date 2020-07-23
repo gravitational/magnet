@@ -41,7 +41,7 @@ func (Help) Envs() error {
 	})
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Key", "Value", "Default", "Short Description"})
+	table.SetHeader([]string{"Env", "Value", "Default", "Short Description"})
 	table.SetBorder(false)
 	table.SetAutoWrapText(false)
 	table.SetReflowDuringAutoWrap(false)

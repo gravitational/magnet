@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/magnet/pkg/progressui"
 	"github.com/gravitational/trace"
-	"github.com/moby/buildkit/client"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -176,10 +176,10 @@ const STDERR = 2
 type streamWriter struct {
 	vertex digest.Digest
 	stream int //1 = stdout, 2 = stderr
-	status chan *client.SolveStatus
+	status chan *progressui.SolveStatus
 }
 
-func outStreams(d digest.Digest, status chan *client.SolveStatus) (stdout io.WriteCloser, stderr io.WriteCloser) {
+func outStreams(d digest.Digest, status chan *progressui.SolveStatus) (stdout io.WriteCloser, stderr io.WriteCloser) {
 	return &streamWriter{
 			stream: STDOUT,
 			vertex: d,
@@ -193,8 +193,8 @@ func outStreams(d digest.Digest, status chan *client.SolveStatus) (stdout io.Wri
 
 // Write implementation for WriteCloser.
 func (sw *streamWriter) Write(dt []byte) (int, error) {
-	sw.status <- &client.SolveStatus{
-		Logs: []*client.VertexLog{
+	sw.status <- &progressui.SolveStatus{
+		Logs: []*progressui.VertexLog{
 			{
 				Vertex:    sw.vertex,
 				Stream:    sw.stream,

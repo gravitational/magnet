@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// DockerConfigCommon holds common configuration for docker commands.
 type DockerConfigCommon struct {
 	magnet *Magnet
 
@@ -17,6 +18,7 @@ type DockerConfigCommon struct {
 	Env map[string]string
 }
 
+// DockerConfigBuild holds configuration for building docker containers.
 type DockerConfigBuild struct {
 	DockerConfigCommon
 	// Always attempt to pull a newer version of the same image (Default: true)
@@ -37,23 +39,11 @@ type DockerConfigBuild struct {
 	// https://andrewlock.net/caching-docker-layers-on-serverless-build-hosts-with-multi-stage-builds---target,-and---cache-from/
 	CacheFrom []string
 
-	// ContextFiles are paths to add to the docker context sent to the daemon
-	ContextFiles []string
-
-	// IncludePaths
-	//IncludePaths []string
-
-	// ExcludePatterns
-	//ExcludePatterns []string
-
 	// ContextCopyConfigs is a list of copy operations to build a custom docker context
 	ContextCopyConfigs []cp.Config
-
-	// TODO: Support custom build context behaviour (IE a whitelist type approach)
-	// and possibly an implementation that scans and finds all go files ignoring common directories (like .git)
-	// Or possibly make it easy to stage all required files into a temp directory, and pass that as a context
 }
 
+// DockerBuild creates a command for building a docker container using buildkit.
 func (m *Magnet) DockerBuild() *DockerConfigBuild {
 	return &DockerConfigBuild{
 		DockerConfigCommon: DockerConfigCommon{
@@ -68,16 +58,19 @@ func (m *Magnet) DockerBuild() *DockerConfigBuild {
 	}
 }
 
+// AddTag adds a name and optionally a tag in the 'name:tag' format. Can be added multiple times.
 func (m *DockerConfigBuild) AddTag(tag string) *DockerConfigBuild {
 	m.Tag = append(m.Tag, tag)
 	return m
 }
 
+// AddCacheFrom adds an image to consider as a cache source.
 func (m *DockerConfigBuild) AddCacheFrom(from string) *DockerConfigBuild {
 	m.CacheFrom = append(m.CacheFrom, from)
 	return m
 }
 
+// SetBuildArg sets a build argument to pass to the build provess.
 func (m *DockerConfigBuild) SetBuildArg(key, value string) *DockerConfigBuild {
 	if m.BuildArgs == nil {
 		m.BuildArgs = make(map[string]string)
@@ -88,6 +81,7 @@ func (m *DockerConfigBuild) SetBuildArg(key, value string) *DockerConfigBuild {
 	return m
 }
 
+// SetEnv sets an environment variable on the docker build command.
 func (m *DockerConfigBuild) SetEnv(key, value string) *DockerConfigBuild {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -98,6 +92,7 @@ func (m *DockerConfigBuild) SetEnv(key, value string) *DockerConfigBuild {
 	return m
 }
 
+// SetEnvs sets environmanet variables on the docker build command.
 func (m *DockerConfigBuild) SetEnvs(envs map[string]string) *DockerConfigBuild {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -110,42 +105,35 @@ func (m *DockerConfigBuild) SetEnvs(envs map[string]string) *DockerConfigBuild {
 	return m
 }
 
+// SetDockerfile sets the name of the Dockerfile (Default is PATH/Dockerfile).
 func (m *DockerConfigBuild) SetDockerfile(dockerfile string) *DockerConfigBuild {
 	m.Dockerfile = dockerfile
 	return m
 }
 
+// SetPull attempts to always pull a newer version of base images.
 func (m *DockerConfigBuild) SetPull(pull bool) *DockerConfigBuild {
 	m.Pull = pull
 	return m
 }
 
+// SetCompress compresses the build context when passing to the docker daemon.
 func (m *DockerConfigBuild) SetCompress(compress bool) *DockerConfigBuild {
 	m.Compress = compress
 	return m
 }
 
+// SetNoCache does not use cache when building images.
 func (m *DockerConfigBuild) SetNoCache(nocache bool) *DockerConfigBuild {
 	m.NoCache = nocache
 	return m
 }
 
+// SetTarget sets the target build stage to build.
 func (m *DockerConfigBuild) SetTarget(target string) *DockerConfigBuild {
 	m.Target = target
 	return m
 }
-
-/*
-func (m *DockerConfigBuild) AddContextPath(path string) *DockerConfigBuild {
-	m.ContextFiles = append(m.ContextFiles, path)
-	return m
-}
-
-func (m *DockerConfigBuild) AddContextPaths(paths []string) *DockerConfigBuild {
-	m.ContextFiles = append(m.ContextFiles, paths...)
-	return m
-}
-*/
 
 // CopyToContext creates a new docker context directory structure, including only the files that match
 // the provided glob patterns.
@@ -171,6 +159,7 @@ func (m *DockerConfigBuild) CopyToContext(src, dst string, includePatterns, excl
 	return m
 }
 
+// Build calls docker to build a container image.
 func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error {
 	args := []string{"build"}
 
@@ -254,112 +243,6 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 		}
 	}
 
-	// To minimize the context passed to docker, we'll copy only the needed context files
-	// Right now this is very hacky, because Docker itself doesn't really expose a way to do this
-	// so we copy the files we're interested into a temp dir, that is then used by docker
-	// TODO: Is there a less hacky way to do this.
-	/*if len(m.IncludePaths) != 0 || len(m.ExcludePatterns) != 0 {
-		archiveOptions := &archive.TarOptions{
-			Compression:     archive.Gzip,
-			ExcludePatterns: append(m.ExcludePatterns, "build/tmp/*"),
-			IncludeFiles:    m.IncludePaths,
-		}
-
-		tarArchive, err := archive.TarWithOptions(contextPath, archiveOptions)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		contextTempDir, err := ioutil.TempDir("build/tmp", "docker-context")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		contextTarPath := filepath.Join(contextTempDir, "context.tar.gz")
-		contextExtractPath := filepath.Join(contextTempDir, "extract")
-
-		err = os.MkdirAll(contextTempDir, 0755)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		archiveFH, err := os.Create(contextTarPath)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		written, err := io.Copy(archiveFH, tarArchive)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		m.magnet.Println("Wrote ", humanize.Bytes(uint64(written)), " bytes to ", contextTarPath)
-
-		archiveFH.Close()
-		tarArchive.Close()
-
-		err = archiver.NewTarGz().Unarchive(contextTarPath, contextExtractPath)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		contextPath = filepath.Join(contextTempDir, "extract")
-
-		if len(m.Dockerfile) > 0 {
-			_, err = m.magnet.Exec().Run(context.TODO(), "cp", m.Dockerfile, filepath.Join(contextExtractPath, "Dockerfile"))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			_, err = m.magnet.Exec().Run(context.TODO(), "cp", "Dockerfile", filepath.Join(contextExtractPath, "Dockerfile"))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	} else {
-		if len(m.Dockerfile) > 0 {
-			args = append(args, "-f", m.Dockerfile)
-		}
-	}
-	*/
-
-	// TODO this is pretty nasty to create a whitelist approach
-	// Use an archiver to tar up the whitelist of files, and re-extract to a temp directory, to
-	// be re-tarred by Docker to pass to the docker daemon. But works as a starting point to
-	// keep the docker context as minimal as possible.
-	/*
-		if len(m.ContextFiles) > 0 {
-			if len(m.Dockerfile) > 0 {
-				m.ContextFiles = append(m.ContextFiles, m.Dockerfile)
-			} else {
-				m.ContextFiles = append(m.ContextFiles, "Dockerfile")
-			}
-
-			contextDir, err := ioutil.TempDir("", "docker-context")
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			//defer os.RemoveAll(contextDir)
-
-			tar := archiver.NewTarGz()
-
-			err = tar.Archive(m.ContextFiles, filepath.Join(contextDir, "context.tar.gz"))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = tar.Close()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			tar = archiver.NewTarGz()
-			tar.Unarchive(filepath.Join(contextDir, "context.tar.gz"), filepath.Join(contextDir, "context"))
-
-			contextPath = filepath.Join(contextDir, "context")
-		}*/
-
 	args = append(args, contextPath)
 
 	_, err := m.magnet.Exec().SetEnvs(m.Env).Run(ctx, "docker", args...)
@@ -367,6 +250,46 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 	return trace.Wrap(err)
 }
 
+// DockerBindMount represents a mount point that can be passed when running a docker container
+type DockerBindMount struct {
+	// Type is the docker type [mount(default), volume, tmpfs]
+	// https://docs.docker.com/storage/bind-mounts/
+	Type string
+	// Source (Bind mount only) is the path to the file or directory on the Docker daemon host.
+	Source string
+	// Destination is the path where the file or directory is mounted within the container
+	Destination string
+	// Readonly causes the mount point to be mounted readonly
+	Readonly bool
+	// BindPropogation changes the bind propagation [rprivate, private, rshared, shared, rslave, slave]
+	// https://docs.docker.com/storage/bind-mounts/#configure-bind-propagation
+	BindPropogation string
+	// Consistency applies to Mac only and is ignored on other platforms. [consistent, delegated, cached]
+	Consistency string
+}
+
+func (b DockerBindMount) arg() string {
+	if b.Type == "" {
+		b.Type = "bind"
+	}
+
+	arg := "type=" + b.Type + ",source=" + b.Source + ",target=" + b.Destination
+	if b.Readonly {
+		arg += ",readonly"
+	}
+
+	if b.BindPropogation != "" {
+		arg += ",bind-propagation=" + b.BindPropogation
+	}
+
+	if b.Consistency != "" {
+		arg += ",consistency=" + b.Consistency
+	}
+
+	return arg
+}
+
+// DockerConfigRun holds configuration used to run a docker container.
 type DockerConfigRun struct {
 	DockerConfigCommon
 
@@ -385,11 +308,12 @@ type DockerConfigRun struct {
 	// Automatically remove the container when it exits
 	Remove bool
 	// Volumes is a list of volumes to bind mount
-	Volumes []string
+	Volumes []DockerBindMount
 	// Workdir sets the working directory inside the container
 	WorkDir string
 }
 
+// DockerRun creates a command builder for running a docker container.
 func (m *Magnet) DockerRun() *DockerConfigRun {
 	return &DockerConfigRun{
 		DockerConfigCommon: DockerConfigCommon{
@@ -398,6 +322,7 @@ func (m *Magnet) DockerRun() *DockerConfigRun {
 	}
 }
 
+// SetEnv passed an environment variable to the running container.
 func (m *DockerConfigRun) SetEnv(key, value string) *DockerConfigRun {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -408,6 +333,7 @@ func (m *DockerConfigRun) SetEnv(key, value string) *DockerConfigRun {
 	return m
 }
 
+// SetEnvs passes environment variables to the running container.
 func (m *DockerConfigRun) SetEnvs(envs map[string]string) *DockerConfigRun {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -420,46 +346,55 @@ func (m *DockerConfigRun) SetEnvs(envs map[string]string) *DockerConfigRun {
 	return m
 }
 
+// SetDetach runs the container in the background.
 func (m *DockerConfigRun) SetDetach(detach bool) *DockerConfigRun {
 	m.Detach = detach
 	return m
 }
 
+// SetUID sets the user id of the container.
 func (m *DockerConfigRun) SetUID(uid string) *DockerConfigRun {
 	m.UID = uid
 	return m
 }
 
+// SetGID sets the group id of the container.
 func (m *DockerConfigRun) SetGID(gid string) *DockerConfigRun {
 	m.GID = gid
 	return m
 }
 
+// SetPrivileged gives extended privileges to the container.
 func (m *DockerConfigRun) SetPrivileged(privileged bool) *DockerConfigRun {
 	m.Privileged = privileged
 	return m
 }
 
+// SetReadonly sets the containers rootfs to readonly.
 func (m *DockerConfigRun) SetReadonly(readonly bool) *DockerConfigRun {
 	m.ReadOnly = readonly
 	return m
 }
 
+// SetRemove automatically removes the container when the container exits.
 func (m *DockerConfigRun) SetRemove(remove bool) *DockerConfigRun {
 	m.Remove = remove
 	return m
 }
 
-func (m *DockerConfigRun) AddVolume(volume string) *DockerConfigRun {
+// AddVolume attaches a filesystem mount to the container.
+func (m *DockerConfigRun) AddVolume(volume DockerBindMount) *DockerConfigRun {
 	m.Volumes = append(m.Volumes, volume)
 	return m
 }
 
+// SetWorkDir sets the working directory inside the container.
 func (m *DockerConfigRun) SetWorkDir(workdir string) *DockerConfigRun {
 	m.WorkDir = workdir
 	return m
 }
 
+// Run calls docker by cli to run the configured container.
 func (m *DockerConfigRun) Run(ctx context.Context, image, cmd string, cargs ...string) error {
 	args := []string{"run"}
 
@@ -492,7 +427,7 @@ func (m *DockerConfigRun) Run(ctx context.Context, image, cmd string, cargs ...s
 	}
 
 	for _, value := range m.Volumes {
-		args = append(args, "-v", value)
+		args = append(args, "--mount", value.arg())
 	}
 
 	for key, value := range m.Env {

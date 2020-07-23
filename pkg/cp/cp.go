@@ -138,7 +138,7 @@ func CopyFile(src, dst string) error {
 		}
 	} else {
 		if !(dfi.Mode().IsRegular()) {
-			return trace.BadParameter("CopyFile: non-regular destination file %s (%q)", dfi.Name(), dfi.Mode().String())
+			return trace.BadParameter("CopyFile: non-regular destination file %s (%q)", dst, dfi.Mode().String())
 		}
 		if os.SameFile(sfi, dfi) {
 			return nil
@@ -244,12 +244,14 @@ func (c Config) checkIsFiltered(src string) (bool, error) {
 
 func (c Config) checkAndSetDefaults() error {
 	for _, p := range c.IncludePatterns {
+		// check we're able to parse the provides match string
 		if _, err := filepath.Match(p, "."); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	for _, p := range c.ExcludePatterns {
+		// check we're able to parse the provides match string
 		if _, err := filepath.Match(p, "."); err != nil {
 			return trace.Wrap(err)
 		}

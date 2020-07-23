@@ -10,42 +10,80 @@ import (
 
 	"github.com/containerd/console"
 	"github.com/gravitational/trace"
-	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/util/progress/progressui"
+
+	//"github.com/moby/buildkit/util/progress/progressui"
+
+	"github.com/gravitational/magnet/pkg/progressui"
+
 	"github.com/opencontainers/go-digest"
 )
 
-var BuildLogDir string
+type Config struct {
+	LogDir   string
+	Version  string
+	BuildDir string
 
-func init() {
-	BuildLogDir = filepath.Join("build/logs", time.Now().Format("20060102150405"))
+	PrintConfig bool
+}
+
+func (c *Config) CheckAndSetDefaults() {
+	if c.Version == "" {
+		c.Version = DefaultVersion()
+	}
+
+	if c.LogDir == "" {
+		c.LogDir = DefaultLogDir()
+	}
+
+	if c.BuildDir == "" {
+		c.BuildDir = DefaultBuildDir(c.Version)
+	}
+}
+
+func (m *Magnet) printHeader() {
+	fmt.Printf("Logs:    %v (%v)\n", m.statusLogger.dirLink(), m.statusLogger.dirReal())
+
+	if m.Version != "" {
+		fmt.Println("Version: ", m.Version)
+	}
+
+	if m.BuildDir != "" {
+		fmt.Println("Build:   ", m.BuildDir)
+	}
 }
 
 type Magnet struct {
-	Vertex *client.Vertex
+	Config
+
+	Vertex *progressui.Vertex
 	parent *Magnet
-	status chan *client.SolveStatus
+	status chan *progressui.SolveStatus
 
 	statusLogger *SolveStatusLogger
+
+	cached bool
 }
 
 var root *Magnet
 var rootOnce sync.Once
+var outputOnce sync.Once
 
-func Root() *Magnet {
+// Root creates a root vertex for executing and capturing status of each build target.
+func Root(c Config) *Magnet {
 	const statusChanSize = 128
 
 	rootOnce.Do(func() {
+		c.CheckAndSetDefaults()
+
 		now := time.Now()
 		root = &Magnet{
-			//status: make(chan *client.SolveStatus, statusChanSize),
-			Vertex: &client.Vertex{
+			Config: c,
+			Vertex: &progressui.Vertex{
 				Digest:    digest.FromString("root"),
-				Name:      fmt.Sprint("Version: ", Version(), " Logs: ", BuildLogDir),
 				Started:   &now,
 				Completed: &now,
 			},
-			statusLogger: newSolveStatusLogger(BuildLogDir),
+			statusLogger: newSolveStatusLogger(c.LogDir),
 		}
 
 		root.status = root.statusLogger.source
@@ -54,29 +92,34 @@ func Root() *Magnet {
 	return root
 }
 
+var waitShutdown sync.WaitGroup
+
 // Shutdown indicates that the program is exiting, and we should shutdown the progressui
 //  if it's currently running
 func Shutdown() {
 	if root != nil {
-		// Hack: give progressui enough time to process any queues status updates
-		time.Sleep(100 * time.Millisecond)
 		close(root.status)
+		waitShutdown.Wait()
 	}
-
-	// Hack: give progressui enough time to update the display when shutting down
-	time.Sleep(1000 * time.Millisecond)
 }
 
-func (m *Magnet) Clone(name string) *Magnet {
+func (m *Magnet) Target(name string) *Magnet {
+	InitOutput()
+
 	started := time.Now()
-	vertex := &client.Vertex{
+	vertex := &progressui.Vertex{
 		Digest:  digest.FromString(name),
 		Name:    name,
 		Started: &started,
 	}
 
-	status := &client.SolveStatus{
-		Vertexes: []*client.Vertex{vertex},
+	// the root vertex doesn't get fully added to the progress ui. So only add a parent if we're not root
+	if m.parent != nil {
+		vertex.Inputs = []digest.Digest{m.Vertex.Digest}
+	}
+
+	status := &progressui.SolveStatus{
+		Vertexes: []*progressui.Vertex{vertex},
 	}
 
 	m.root().status <- status
@@ -87,27 +130,61 @@ func (m *Magnet) Clone(name string) *Magnet {
 	}
 }
 
-func InitOutput() {
-	var c console.Console
+var debiantFrontend = E(EnvVar{
+	Key:   "DEBIAN_FRONTEND",
+	Short: "Set to noninteractive or stderr to null to enable non-interactive output",
+})
 
-	if os.Getenv("DEBIAN_FRONTEND") != "noninteractive" {
-		if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
-			c = cn
-		}
+var CacheDir = E(EnvVar{
+	Key:     "XDG_CACHE_HOME",
+	Short:   "Location to store/cache build assets",
+	Default: "build/cache",
+})
+
+// AbsCacheDir is the configured cache directory as an absolute path.
+func AbsCacheDir() string {
+	if filepath.IsAbs(CacheDir) {
+		return CacheDir
 	}
 
-	go func() {
-		err := progressui.DisplaySolveStatus(
-			context.TODO(),
-			Root().Vertex.Name,
-			c,
-			os.Stdout,
-			Root().statusLogger.destination,
-		)
-		if err != nil {
-			panic(trace.DebugReport(err))
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	return filepath.Join(wd, CacheDir)
+}
+
+func InitOutput() {
+	outputOnce.Do(func() {
+		if root.PrintConfig {
+			root.printHeader()
 		}
-	}()
+
+		var c console.Console
+
+		if debiantFrontend != "noninteractive" {
+			if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
+				c = cn
+			}
+		}
+
+		waitShutdown.Add(1)
+		go func() {
+			err := progressui.DisplaySolveStatus(
+				context.TODO(),
+				root.Vertex.Name,
+				c,
+				os.Stdout,
+				root.statusLogger.destination,
+			)
+			if err != nil {
+				panic(trace.DebugReport(err))
+			}
+
+			waitShutdown.Done()
+		}()
+
+	})
 }
 
 func (m *Magnet) root() *Magnet {
@@ -120,25 +197,30 @@ func (m *Magnet) root() *Magnet {
 }
 
 // Complete marks the current task as complete.
-func (m *Magnet) Complete(cached bool, err error) {
+func (m *Magnet) Complete(err error) {
 	now := time.Now()
 	m.Vertex.Completed = &now
-	m.Vertex.Cached = cached
+	m.Vertex.Cached = m.cached
 	m.Vertex.Error = trace.DebugReport(err)
 
-	m.root().status <- &client.SolveStatus{
-		Vertexes: []*client.Vertex{
+	m.root().status <- &progressui.SolveStatus{
+		Vertexes: []*progressui.Vertex{
 			m.Vertex,
 		},
 	}
 }
 
-// Printlnfallows writing log entries to the log output for the target.
+// SetCached marks the current task as cached when it's completed.
+func (m *Magnet) SetCached(cached bool) {
+	m.cached = cached
+}
+
+// Println allows writing log entries to the log output for the target.
 func (m *Magnet) Println(args ...interface{}) {
 	msg := fmt.Sprintln(args...)
 
-	m.root().status <- &client.SolveStatus{
-		Logs: []*client.VertexLog{
+	m.root().status <- &progressui.SolveStatus{
+		Logs: []*progressui.VertexLog{
 			{
 				Vertex:    m.Vertex.Digest,
 				Stream:    STDOUT,

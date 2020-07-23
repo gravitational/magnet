@@ -22,7 +22,7 @@ type GolangConfigCommon struct {
 	// Env is a set of environment variables to pass to the compiler
 	Env map[string]string
 
-	// Rebuilds forces rebuilding of packages that are already up todate
+	// Rebuilds forces rebuilding of packages that are already up to date
 	Rebuild bool
 
 	// Race enables data race detection
@@ -133,6 +133,7 @@ type GolangConfigBuild struct {
 	magnet *Magnet
 }
 
+// GolangBuild returns a builder that can be used to build a golang binary.
 func (m *Magnet) GolangBuild() *GolangConfigBuild {
 	return &GolangConfigBuild{
 		TrimPath: true,
@@ -140,42 +141,52 @@ func (m *Magnet) GolangBuild() *GolangConfigBuild {
 	}
 }
 
+// GolangTest returns a builder that can be used to run golang tests against a set of sources.
 func (m *Magnet) GolangTest() *GolangConfigTest {
 	return &GolangConfigTest{
 		magnet: m,
 	}
 }
 
+// SetOutputPath sets the output directory or filename to write the resulting build artifacts to
+// Default build/${GOOS}/${GOARCH}/ if GOOS/GOARCH are set.
 func (m *GolangConfigBuild) SetOutputPath(path string) *GolangConfigBuild {
 	m.OutputPath = path
 	return m
 }
 
+// AddTag adds a build tag for the golang compiler to consider during the build.
 func (m *GolangConfigBuild) AddTag(tag string) *GolangConfigBuild {
 	m.Tags = append(m.Tags, tag)
 	return m
 }
 
+// SetMod sets the module download mode (readonly or vendor).
+// Use `go help modules` for more information.
 func (m *GolangConfigBuild) SetMod(mode string) *GolangConfigBuild {
 	m.ModMode = mode
 	return m
 }
 
+// AddLDFlag adds an ldflag to pass to the compiler.
 func (m *GolangConfigBuild) AddLDFlag(flag string) *GolangConfigBuild {
 	m.LDFlags = append(m.LDFlags, flag)
 	return m
 }
 
+// AddLDFlags adds multiple ldflags to pass to the compiler.
 func (m *GolangConfigBuild) AddLDFlags(flags []string) *GolangConfigBuild {
 	m.LDFlags = append(m.LDFlags, flags...)
 	return m
 }
 
+// AddGCFlag adds a flag to the go tool compile program.
 func (m *GolangConfigBuild) AddGCFlag(flag string) *GolangConfigBuild {
 	m.GCFlags = append(m.GCFlags, flag)
 	return m
 }
 
+// AddGCCGOFlag adds a flag to pass to the gcc go compiler.
 func (m *GolangConfigBuild) AddGCCGOFlag(flag string) *GolangConfigBuild {
 	m.GCCGOFlags = append(m.GCCGOFlags, flag)
 	return m
@@ -192,41 +203,49 @@ const (
 	BuildModePlugin   = "plugin"
 )
 
+// SetBuildMode sets the golang build mode (see go help buildmode).
 func (m *GolangConfigBuild) SetBuildMode(mode string) *GolangConfigBuild {
 	m.BuildMode = mode
 	return m
 }
 
+// SetVerbose sets whether to pass verbose flag to go toolchain.
 func (m *GolangConfigBuild) SetVerbose(v bool) *GolangConfigBuild {
 	m.Verbose = v
 	return m
 }
 
+// SetDryRun sets the dry-run flag on the go build toolchain.
 func (m *GolangConfigBuild) SetDryRun(v bool) *GolangConfigBuild {
 	m.DryRun = v
 	return m
 }
 
+// SetParallelTasks allows overriding the number of parallel tasks the compiler will run (Defaults to number of cores).
 func (m *GolangConfigBuild) SetParallelTasks(p int) *GolangConfigBuild {
 	m.ParallelTasks = &p
 	return m
 }
 
+// SetRace indicates whether to enable the race detector.
 func (m *GolangConfigBuild) SetRace(b bool) *GolangConfigBuild {
 	m.Race = b
 	return m
 }
 
+// SetRebuild forces packages that are already up to date to be rebuilt.
 func (m *GolangConfigBuild) SetRebuild(b bool) *GolangConfigBuild {
 	m.Rebuild = b
 	return m
 }
 
+// SetTrimpath removes filesystem paths from the resulting executable.
 func (m *GolangConfigBuild) SetTrimpath(b bool) *GolangConfigBuild {
 	m.TrimPath = b
 	return m
 }
 
+// SetEnv sets an environment variable on the build tools.
 func (m *GolangConfigBuild) SetEnv(key, value string) *GolangConfigBuild {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -237,6 +256,7 @@ func (m *GolangConfigBuild) SetEnv(key, value string) *GolangConfigBuild {
 	return m
 }
 
+// SetEnvs allows setting multiple environment variables on the build tools.
 func (m *GolangConfigBuild) SetEnvs(envs map[string]string) *GolangConfigBuild {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -249,6 +269,7 @@ func (m *GolangConfigBuild) SetEnvs(envs map[string]string) *GolangConfigBuild {
 	return m
 }
 
+// SetGOOS allows overriding the GOOS env to a specific value.
 func (m *GolangConfigBuild) SetGOOS(value string) *GolangConfigBuild {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -257,6 +278,7 @@ func (m *GolangConfigBuild) SetGOOS(value string) *GolangConfigBuild {
 	return m
 }
 
+// SetGOARCH allows overriding the default architecture for the resulting binary.
 func (m *GolangConfigBuild) SetGOARCH(value string) *GolangConfigBuild {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -265,11 +287,14 @@ func (m *GolangConfigBuild) SetGOARCH(value string) *GolangConfigBuild {
 	return m
 }
 
+// SetBuildContainer allows specifying a docker image to use for the build. Instead of running the build toolchain
+// directly, a docker container will be used to map the sources and run the build within the consistent image.
 func (m *GolangConfigBuild) SetBuildContainer(value string) *GolangConfigBuild {
 	m.BuildContainer = value
 	return m
 }
 
+// Build executes the build as configured.
 func (m *GolangConfigBuild) Build(ctx context.Context, packages ...string) error {
 	if len(m.BuildContainer) > 0 {
 		return trace.Wrap(m.buildDocker(ctx, packages...))
@@ -284,14 +309,14 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		panic(err)
 	}
 
-	wdTarget := "/gopath"
+	wdTarget := "/go"
 
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
 		rel, err := filepath.Rel(gopath, wd)
 		// err == we're not inside the current GOPATH, don't change the mount
 		if err == nil {
-			wdTarget = filepath.Join("/gopath", rel)
+			wdTarget = filepath.Join("/go", rel)
 		}
 	}
 
@@ -299,10 +324,20 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
 		SetGID(fmt.Sprint(os.Getgid())).
-		SetEnv("XDG_CACHE_HOME", filepath.Join(wdTarget, "build/cache")).
-		SetEnv("GOCACHE", filepath.Join(wdTarget, "build/cache/go")).
+		SetEnv("XDG_CACHE_HOME", "/cache").
+		SetEnv("GOCACHE", "/cache/go").
 		SetEnvs(m.Env).
-		AddVolume(fmt.Sprint(wd, ":", wdTarget, ":delegated")).SetWorkDir(wdTarget)
+		AddVolume(DockerBindMount{
+			Source:      wd,
+			Destination: wdTarget,
+			Consistency: "delegated",
+		}).
+		AddVolume(DockerBindMount{
+			Source:      AbsCacheDir(),
+			Destination: "/cache",
+			Consistency: "delegated",
+		}).
+		SetWorkDir(wdTarget)
 
 	gocmd := m.builcCmd(packages...)
 
@@ -351,6 +386,7 @@ type GolangConfigTest struct {
 	magnet *Magnet
 }
 
+// Test executes the configured test.
 func (m *GolangConfigTest) Test(ctx context.Context, packages ...string) error {
 	if len(m.BuildContainer) > 0 {
 		return trace.Wrap(m.testDocker(ctx, packages...))
@@ -365,14 +401,14 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		panic(err)
 	}
 
-	wdTarget := "/gopath"
+	wdTarget := "/go"
 
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
 		rel, err := filepath.Rel(gopath, wd)
 		// err == we're not inside the current GOPATH, don't change the mount
 		if err == nil {
-			wdTarget = filepath.Join("/gopath", rel)
+			wdTarget = filepath.Join("/go", rel)
 		}
 	}
 
@@ -380,10 +416,19 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
 		SetGID(fmt.Sprint(os.Getgid())).
-		SetEnv("XDG_CACHE_HOME", filepath.Join(wdTarget, "build/cache")).
-		SetEnv("GOCACHE", filepath.Join(wdTarget, "build/cache/go")).
+		SetEnv("XDG_CACHE_HOME", "/cache").
+		SetEnv("GOCACHE", "/cache/go").
 		SetEnvs(m.Env).
-		AddVolume(fmt.Sprint(wd, ":", wdTarget, ":delegated")).SetWorkDir(wdTarget)
+		AddVolume(DockerBindMount{
+			Source:      wd,
+			Destination: wdTarget,
+			Consistency: "delegated",
+		}).
+		AddVolume(DockerBindMount{
+			Source:      AbsCacheDir(),
+			Destination: "/cache",
+			Consistency: "delegated",
+		})
 
 	gocmd := m.builcCmd(packages...)
 
@@ -406,66 +451,80 @@ func (m *GolangConfigTest) builcCmd(packages ...string) []string {
 	return cmd
 }
 
+// AddTag adds a build tag for the golang compiler to consider during the build.
 func (m *GolangConfigTest) AddTag(tag string) *GolangConfigTest {
 	m.Tags = append(m.Tags, tag)
 	return m
 }
 
+// SetMod sets the module download mode (readonly or vendor).
+// Use `go help modules` for more information.
 func (m *GolangConfigTest) SetMod(mode string) *GolangConfigTest {
 	m.ModMode = mode
 	return m
 }
 
+// AddLDFlag adds an ldflag to pass to the compiler.
 func (m *GolangConfigTest) AddLDFlag(flag string) *GolangConfigTest {
 	m.LDFlags = append(m.LDFlags, flag)
 	return m
 }
 
+// AddLDFlags adds multiple ldflags to pass to the compiler.
 func (m *GolangConfigTest) AddLDFlags(flags []string) *GolangConfigTest {
 	m.LDFlags = append(m.LDFlags, flags...)
 	return m
 }
 
+// AddGCFlag adds a flag to the go tool compile program.
 func (m *GolangConfigTest) AddGCFlag(flag string) *GolangConfigTest {
 	m.GCFlags = append(m.GCFlags, flag)
 	return m
 }
 
+// AddGCCGOFlag adds a flag to pass to the gcc go compiler.
 func (m *GolangConfigTest) AddGCCGOFlag(flag string) *GolangConfigTest {
 	m.GCCGOFlags = append(m.GCCGOFlags, flag)
 	return m
 }
 
+// SetBuildMode sets the golang build mode (see go help buildmode).
 func (m *GolangConfigTest) SetBuildMode(mode string) *GolangConfigTest {
 	m.BuildMode = mode
 	return m
 }
 
+// SetVerbose sets whether to pass verbose flag to go toolchain.
 func (m *GolangConfigTest) SetVerbose(v bool) *GolangConfigTest {
 	m.Verbose = v
 	return m
 }
 
+// SetDryRun sets the dry-run flag on the go build toolchain.
 func (m *GolangConfigTest) SetDryRun(v bool) *GolangConfigTest {
 	m.DryRun = v
 	return m
 }
 
+// SetParallelTasks allows overriding the number of parallel tasks the compiler will run (Defaults to number of cores).
 func (m *GolangConfigTest) SetParallelTasks(p int) *GolangConfigTest {
 	m.ParallelTasks = &p
 	return m
 }
 
+// SetRace indicates whether to enable the race detector.
 func (m *GolangConfigTest) SetRace(b bool) *GolangConfigTest {
 	m.Race = b
 	return m
 }
 
+// SetRebuild forces packages that are already up to date to be rebuilt.
 func (m *GolangConfigTest) SetRebuild(b bool) *GolangConfigTest {
 	m.Rebuild = b
 	return m
 }
 
+// SetEnv sets an environment variable on the build tools.
 func (m *GolangConfigTest) SetEnv(key, value string) *GolangConfigTest {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -476,6 +535,7 @@ func (m *GolangConfigTest) SetEnv(key, value string) *GolangConfigTest {
 	return m
 }
 
+// SetEnvs allows setting multiple environment variables on the build tools.
 func (m *GolangConfigTest) SetEnvs(envs map[string]string) *GolangConfigTest {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -488,6 +548,7 @@ func (m *GolangConfigTest) SetEnvs(envs map[string]string) *GolangConfigTest {
 	return m
 }
 
+// SetGOOS allows overriding the GOOS env to a specific value.
 func (m *GolangConfigTest) SetGOOS(value string) *GolangConfigTest {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -496,6 +557,7 @@ func (m *GolangConfigTest) SetGOOS(value string) *GolangConfigTest {
 	return m
 }
 
+// SetGOARCH allows overriding the default architecture for the resulting binary.
 func (m *GolangConfigTest) SetGOARCH(value string) *GolangConfigTest {
 	if m.Env == nil {
 		m.Env = make(map[string]string)
@@ -504,6 +566,8 @@ func (m *GolangConfigTest) SetGOARCH(value string) *GolangConfigTest {
 	return m
 }
 
+// SetBuildContainer allows specifying a docker image to use for the build. Instead of running the build toolchain
+// directly, a docker container will be used to map the sources and run the build within the consistent image.
 func (m *GolangConfigTest) SetBuildContainer(value string) *GolangConfigTest {
 	m.BuildContainer = value
 	return m
