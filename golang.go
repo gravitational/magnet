@@ -309,14 +309,16 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		panic(err)
 	}
 
-	wdTarget := "/go"
+	// Different build containers have an inconsistent directory layout. So use a distinct directory for
+	// sources
+	wdTarget := "/host"
 
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
 		rel, err := filepath.Rel(gopath, wd)
 		// err == we're not inside the current GOPATH, don't change the mount
 		if err == nil {
-			wdTarget = filepath.Join("/go", rel)
+			wdTarget = filepath.Join(wdTarget, rel)
 		}
 	}
 
@@ -326,6 +328,7 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
+		SetEnv("GOPATH", "/host").
 		SetEnvs(m.Env).
 		AddVolume(DockerBindMount{
 			Source:      wd,
@@ -401,14 +404,16 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		panic(err)
 	}
 
-	wdTarget := "/go"
+	// Our different golang containers have inconsistent directory layout.
+	// So we place code in a difrectory that doesn't conflict with either of them.
+	wdTarget := "/host"
 
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
 		rel, err := filepath.Rel(gopath, wd)
 		// err == we're not inside the current GOPATH, don't change the mount
 		if err == nil {
-			wdTarget = filepath.Join("/go", rel)
+			wdTarget = filepath.Join(wdTarget, rel)
 		}
 	}
 
@@ -418,6 +423,7 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
+		SetEnv("GOPATH", "/host").
 		SetEnvs(m.Env).
 		AddVolume(DockerBindMount{
 			Source:      wd,
