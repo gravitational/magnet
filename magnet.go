@@ -24,9 +24,6 @@ type Config struct {
 	BuildDir string
 
 	PrintConfig bool
-
-	// MakeEnvTarget allows executing a make target and important the results as defaults for the environment
-	MakeEnvTarget string
 }
 
 func (c *Config) CheckAndSetDefaults() {
@@ -77,13 +74,6 @@ func Root(c Config) *Magnet {
 
 	rootOnce.Do(func() {
 		c.CheckAndSetDefaults()
-
-		if c.MakeEnvTarget != "" {
-			err := importMakeEnv(c.MakeEnvTarget)
-			if err != nil {
-				panic(err)
-			}
-		}
 
 		now := time.Now()
 		root = &Magnet{

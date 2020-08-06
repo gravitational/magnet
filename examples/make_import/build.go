@@ -25,8 +25,7 @@ import (
 )
 
 var root = magnet.Root(magnet.Config{
-	PrintConfig:   true,
-	MakeEnvTarget: "print-vars",
+	PrintConfig: true,
 })
 
 var (

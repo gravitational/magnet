@@ -4,8 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
-
-	"github.com/gravitational/trace"
+	"sync"
 )
 
 var EnvVars map[string]EnvVar
@@ -41,6 +40,8 @@ func E(e EnvVar) string {
 }
 
 func GetEnv(key string) string {
+	importMakeEnv()
+
 	if EnvVars == nil {
 		EnvVars = make(map[string]EnvVar)
 		ImportEnvVars = make(map[string]string)
@@ -61,17 +62,21 @@ func GetEnv(key string) string {
 	panic("Requested environment variable hasn't been registered")
 }
 
-func importMakeEnv(target string) error {
-	out, err := Output(context.TODO(), "make", target)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+var importOnce sync.Once
 
-	lines := strings.Split(out, "\n")
-	for _, line := range lines {
-		cols := strings.SplitN(line, "=", 2)
-		ImportEnvVars[cols[0]] = cols[1]
-	}
+func importMakeEnv() {
 
-	return nil
+	importOnce.Do(func() {
+		out, err := Output(context.TODO(), "make", "magnet-vars")
+		if err != nil {
+			// suppress any errors
+			return
+		}
+
+		lines := strings.Split(out, "\n")
+		for _, line := range lines {
+			cols := strings.SplitN(line, "=", 2)
+			ImportEnvVars[cols[0]] = cols[1]
+		}
+	})
 }
