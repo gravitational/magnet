@@ -134,7 +134,9 @@ type GolangConfigBuild struct {
 }
 
 func (m *GolangConfigBuild) cacheDir() string {
-	return filepath.Join(m.magnet.AbsCacheDir(), "go")
+	path := filepath.Join(m.magnet.AbsCacheDir(), "go")
+	os.MkdirAll(path, 0755)
+	return path
 }
 
 // GolangBuild returns a builder that can be used to build a golang binary.
@@ -395,7 +397,9 @@ type GolangConfigTest struct {
 }
 
 func (m *GolangConfigTest) cacheDir() string {
-	return filepath.Join(m.magnet.AbsCacheDir(), "go")
+	path := filepath.Join(m.magnet.AbsCacheDir(), "go")
+	os.MkdirAll(path, 0755)
+	return path
 }
 
 // Test executes the configured test.
