@@ -133,6 +133,10 @@ type GolangConfigBuild struct {
 	magnet *Magnet
 }
 
+func (m *GolangConfigBuild) cacheDir() string {
+	return filepath.Join(m.magnet.AbsCacheDir(), "go")
+}
+
 // GolangBuild returns a builder that can be used to build a golang binary.
 func (m *Magnet) GolangBuild() *GolangConfigBuild {
 	return &GolangConfigBuild{
@@ -337,7 +341,7 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 			Consistency: "delegated",
 		}).
 		AddVolume(DockerBindMount{
-			Source:      AbsCacheDir(),
+			Source:      m.cacheDir(),
 			Destination: "/cache",
 			Consistency: "delegated",
 		}).
@@ -390,6 +394,10 @@ type GolangConfigTest struct {
 	magnet *Magnet
 }
 
+func (m *GolangConfigTest) cacheDir() string {
+	return filepath.Join(m.magnet.AbsCacheDir(), "go")
+}
+
 // Test executes the configured test.
 func (m *GolangConfigTest) Test(ctx context.Context, packages ...string) error {
 	if len(m.BuildContainer) > 0 {
@@ -433,7 +441,7 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 			Consistency: "delegated",
 		}).
 		AddVolume(DockerBindMount{
-			Source:      AbsCacheDir(),
+			Source:      m.cacheDir(),
 			Destination: "/cache",
 			Consistency: "delegated",
 		})

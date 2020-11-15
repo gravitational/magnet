@@ -3,6 +3,7 @@ package magnet
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,6 +17,8 @@ import (
 	"github.com/gravitational/magnet/pkg/progressui"
 
 	"github.com/opencontainers/go-digest"
+
+	"golang.org/x/mod/modfile"
 )
 
 type Config struct {
@@ -24,6 +27,7 @@ type Config struct {
 	BuildDir string
 
 	PrintConfig bool
+	ModulePath  string
 }
 
 func (c *Config) CheckAndSetDefaults() {
@@ -38,6 +42,26 @@ func (c *Config) CheckAndSetDefaults() {
 	if c.BuildDir == "" {
 		c.BuildDir = DefaultBuildDir(c.Version)
 	}
+
+	if c.ModulePath == "" {
+		buf, err := ioutil.ReadFile("go.mod")
+		// TODO (knisbet), silently discarding the error for now
+		// detection only works if using go modules
+		if err == nil {
+			c.ModulePath = modfile.ModulePath(buf)
+		} else {
+			wd, err := os.Getwd()
+			if err != nil {
+				panic(err)
+			}
+
+			gopath := os.Getenv("GOPATH")
+			if gopath != "" {
+			}
+			// TODO (knisbet) silent discard of error)
+			c.ModulePath, _ = filepath.Rel(filepath.Join(gopath, "src"), wd)
+		}
+	}
 }
 
 func (m *Magnet) printHeader() {
@@ -49,6 +73,9 @@ func (m *Magnet) printHeader() {
 
 	if m.BuildDir != "" {
 		fmt.Println("Build:   ", m.BuildDir)
+	}
+	if m.BuildDir != "" {
+		fmt.Println("Cache:   ", m.CacheDir())
 	}
 }
 
@@ -135,23 +162,27 @@ var debiantFrontend = E(EnvVar{
 	Short: "Set to noninteractive or stderr to null to enable non-interactive output",
 })
 
-var CacheDir = E(EnvVar{
+var cacheDir = E(EnvVar{
 	Key:     "XDG_CACHE_HOME",
 	Short:   "Location to store/cache build assets",
 	Default: "build/cache",
 })
 
+func (c Config) CacheDir() string {
+	return filepath.Join(cacheDir, "magnet", c.ModulePath)
+}
+
 // AbsCacheDir is the configured cache directory as an absolute path.
-func AbsCacheDir() string {
-	if filepath.IsAbs(CacheDir) {
-		return CacheDir
+func (c Config) AbsCacheDir() string {
+	if filepath.IsAbs(c.CacheDir()) {
+		return cacheDir
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	return filepath.Join(wd, CacheDir)
+	return filepath.Join(wd, c.CacheDir())
 }
 
 func InitOutput() {

@@ -24,6 +24,7 @@ require (
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	github.com/stretchr/testify v1.5.1 // indirect
 	github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea
+	golang.org/x/mod v0.3.0
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344 // indirect
 	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1

@@ -58,7 +58,7 @@ func (m *Magnet) Download(url string) (path string, err error) {
 	}
 	progress.Init()
 
-	path = filepath.Join(CacheDir, "dl", digest.FromString(url).String())
+	path = filepath.Join(m.CacheDir(), "dl", digest.FromString(url).String())
 
 	metadata, err := getMetadata(path)
 	if err != nil && !trace.IsNotFound(err) {
