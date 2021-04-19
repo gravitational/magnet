@@ -345,7 +345,6 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
-		SetEnv("GOPATH", "/host").
 		SetEnvs(m.Env).
 		SetWorkDir(wdTarget).
 		AddVolume(DockerBindMount{
@@ -442,7 +441,6 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
-		SetEnv("GOPATH", "/host").
 		SetEnvs(m.Env).
 		SetWorkDir(wdTarget).
 		AddVolume(DockerBindMount{
