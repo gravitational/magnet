@@ -133,10 +133,16 @@ type GolangConfigBuild struct {
 	magnet *Magnet
 }
 
-func (m *GolangConfigBuild) cacheDir() string {
-	path := filepath.Join(m.magnet.AbsCacheDir(), "go")
-	os.MkdirAll(path, 0755)
-	return path
+func (m *GolangConfigBuild) cacheDir() (path string, err error) {
+	absDir, err := m.magnet.AbsCacheDir()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	path = filepath.Join(absDir, "go")
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return path, nil
 }
 
 // GolangBuild returns a builder that can be used to build a golang binary.
@@ -162,8 +168,8 @@ func (m *GolangConfigBuild) SetOutputPath(path string) *GolangConfigBuild {
 }
 
 // AddTag adds a build tag for the golang compiler to consider during the build.
-func (m *GolangConfigBuild) AddTag(tag string) *GolangConfigBuild {
-	m.Tags = append(m.Tags, tag)
+func (m *GolangConfigBuild) AddTag(tags ...string) *GolangConfigBuild {
+	m.Tags = append(m.Tags, tags...)
 	return m
 }
 
@@ -312,7 +318,7 @@ func (m *GolangConfigBuild) Build(ctx context.Context, packages ...string) error
 func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string) error {
 	wd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return trace.Wrap(err, "failed to query working directory")
 	}
 
 	// Different build containers have an inconsistent directory layout. So use a distinct directory for
@@ -328,6 +334,11 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		}
 	}
 
+	cacheDir, err := m.cacheDir()
+	if err != nil {
+		return trace.Wrap(err, "failed to create build cache directory")
+	}
+
 	cmd := m.magnet.DockerRun().
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
@@ -343,31 +354,25 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 			Consistency: "delegated",
 		}).
 		AddVolume(DockerBindMount{
-			Source:      m.cacheDir(),
+			Source:      cacheDir,
 			Destination: "/cache",
 			Consistency: "delegated",
 		}).
 		SetWorkDir(wdTarget)
 
-	gocmd := m.builcCmd(packages...)
+	gocmd := m.buildCmd(packages...)
 
 	return trace.Wrap(cmd.Run(ctx, m.BuildContainer, gocmd[0], gocmd[1:]...))
 }
 
 func (m *GolangConfigBuild) buildLocal(ctx context.Context, packages ...string) error {
-	gocmd := m.builcCmd(packages...)
+	gocmd := m.buildCmd(packages...)
 	_, err := m.magnet.Exec().SetEnvs(m.Env).Run(ctx, gocmd[0], gocmd[1:]...)
 	return trace.Wrap(err)
 }
 
-func (m *GolangConfigBuild) builcCmd(packages ...string) []string {
-	cmd := []string{"go", "build"}
-
-	cmd = append(cmd, m.GolangConfigCommon.genFlags()...)
-
-	if len(m.OutputPath) > 0 {
-		cmd = append(cmd, "-o", m.OutputPath)
-	}
+func (m *GolangConfigBuild) buildCmd(packages ...string) []string {
+	cmd := append([]string{"go", "build"}, m.GolangConfigCommon.genFlags()...)
 
 	if m.TrimPath {
 		cmd = append(cmd, "-trimpath")
@@ -375,19 +380,9 @@ func (m *GolangConfigBuild) builcCmd(packages ...string) []string {
 
 	if len(m.OutputPath) > 0 {
 		cmd = append(cmd, "-o", m.OutputPath)
-	} else if len(m.Env["GOOS"]) > 0 && len(m.Env["GOARCH"]) > 0 {
-		if len(packages) == 1 {
-			cmd = append(cmd, "-o", fmt.Sprintf("build/%v_%v/%v", m.Env["GOOS"], m.Env["GOARCH"], filepath.Base(packages[0])))
-		} else {
-			buildDir := fmt.Sprintf("build/%v_%v/", m.Env["GOOS"], m.Env["GOARCH"])
-			cmd = append(cmd, "-o", buildDir)
-			_ = os.MkdirAll(buildDir, 0755)
-		}
 	}
 
-	cmd = append(cmd, packages...)
-
-	return cmd
+	return append(cmd, packages...)
 }
 
 type GolangConfigTest struct {
@@ -396,10 +391,16 @@ type GolangConfigTest struct {
 	magnet *Magnet
 }
 
-func (m *GolangConfigTest) cacheDir() string {
-	path := filepath.Join(m.magnet.AbsCacheDir(), "go")
-	os.MkdirAll(path, 0755)
-	return path
+func (m *GolangConfigTest) cacheDir() (path string, err error) {
+	absDir, err := m.magnet.AbsCacheDir()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	path = filepath.Join(absDir, "go")
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return path, nil
 }
 
 // Test executes the configured test.
@@ -414,7 +415,7 @@ func (m *GolangConfigTest) Test(ctx context.Context, packages ...string) error {
 func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) error {
 	wd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return trace.Wrap(err, "failed to query working directory")
 	}
 
 	// Our different golang containers have inconsistent directory layout.
@@ -430,6 +431,11 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		}
 	}
 
+	cacheDir, err := m.cacheDir()
+	if err != nil {
+		return trace.Wrap(err, "failed to create build cache directory")
+	}
+
 	cmd := m.magnet.DockerRun().
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
@@ -445,7 +451,7 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 			Consistency: "delegated",
 		}).
 		AddVolume(DockerBindMount{
-			Source:      m.cacheDir(),
+			Source:      cacheDir,
 			Destination: "/cache",
 			Consistency: "delegated",
 		})

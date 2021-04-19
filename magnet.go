@@ -30,7 +30,7 @@ type Config struct {
 	ModulePath  string
 }
 
-func (c *Config) CheckAndSetDefaults() {
+func (c *Config) CheckAndSetDefaults() error {
 	if c.Version == "" {
 		c.Version = DefaultVersion()
 	}
@@ -52,16 +52,19 @@ func (c *Config) CheckAndSetDefaults() {
 		} else {
 			wd, err := os.Getwd()
 			if err != nil {
-				panic(err)
+				return trace.Wrap(err)
 			}
 
 			gopath := os.Getenv("GOPATH")
 			if gopath != "" {
 			}
-			// TODO (knisbet) silent discard of error)
-			c.ModulePath, _ = filepath.Rel(filepath.Join(gopath, "src"), wd)
+			c.ModulePath, err = filepath.Rel(filepath.Join(gopath, "src"), wd)
+			if err != nil {
+				return trace.Wrap(err, "invalid working directory %s in GOPATH mode", wd)
+			}
 		}
 	}
+	return nil
 }
 
 func (m *Magnet) printHeader() {
@@ -119,15 +122,18 @@ func Root(c Config) *Magnet {
 	return root
 }
 
-var waitShutdown sync.WaitGroup
+var solveErrC = make(chan error, 1)
 
 // Shutdown indicates that the program is exiting, and we should shutdown the progressui
 //  if it's currently running
-func Shutdown() {
+func Shutdown() error {
 	if root != nil {
 		close(root.status)
-		waitShutdown.Wait()
+		if err := <-solveErrC; err != nil {
+			return trace.Wrap(err)
+		}
 	}
+	return nil
 }
 
 func (m *Magnet) Target(name string) *Magnet {
@@ -173,16 +179,16 @@ func (c Config) CacheDir() string {
 }
 
 // AbsCacheDir is the configured cache directory as an absolute path.
-func (c Config) AbsCacheDir() string {
+func (c Config) AbsCacheDir() (path string, err error) {
 	if filepath.IsAbs(c.CacheDir()) {
-		return cacheDir
+		return cacheDir, nil
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return "", trace.Wrap(err)
 	}
-	return filepath.Join(wd, c.CacheDir())
+	return filepath.Join(wd, c.CacheDir()), nil
 }
 
 func InitOutput() {
@@ -199,22 +205,15 @@ func InitOutput() {
 			}
 		}
 
-		waitShutdown.Add(1)
 		go func() {
-			err := progressui.DisplaySolveStatus(
+			solveErrC <- progressui.DisplaySolveStatus(
 				context.TODO(),
 				root.Vertex.Name,
 				c,
 				os.Stdout,
 				root.statusLogger.destination,
 			)
-			if err != nil {
-				panic(trace.DebugReport(err))
-			}
-
-			waitShutdown.Done()
 		}()
-
 	})
 }
 

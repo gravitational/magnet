@@ -1,4 +1,4 @@
-//+build mage
+// +build mage
 
 /*
 Copyright 2020 Gravitational, Inc.
@@ -19,9 +19,6 @@ import (
 	"time"
 
 	"github.com/gravitational/magnet"
-
-	// mage:import
-	_ "github.com/gravitational/magnet/common"
 )
 
 var root = magnet.Root(magnet.Config{
