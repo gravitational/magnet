@@ -273,7 +273,8 @@ func (t *trace) update(s *SolveStatus, termWidth int) {
 				v.term.Resize(termHeight, termWidth-termPad)
 			}
 			v.termBytes += len(l.Data)
-			v.term.Write(l.Data) // error unhandled on purpose. don't trust vt100
+			// error unhandled on purpose. don't trust vt100
+			v.term.Write(l.Data) //nolint:errcheck
 		}
 		i := 0
 		complete := split(l.Data, byte('\n'), func(dt []byte) {
@@ -307,7 +308,7 @@ func (t *trace) printErrorLogs(f io.Writer) {
 			fmt.Fprintln(f, "------")
 			fmt.Fprintf(f, " > %s:\n", v.Name)
 			for _, l := range v.logs {
-				f.Write(l)
+				f.Write(l) //nolint:errcheck
 				fmt.Fprintln(f)
 			}
 			fmt.Fprintln(f, "------")

@@ -25,12 +25,13 @@ type Config struct {
 	LogDir   string
 	Version  string
 	BuildDir string
+	CacheDir string
 
 	PrintConfig bool
 	ModulePath  string
 }
 
-func (c *Config) CheckAndSetDefaults() error {
+func (c *Config) checkAndSetDefaults() error {
 	if c.Version == "" {
 		c.Version = DefaultVersion()
 	}
@@ -57,10 +58,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 			gopath := os.Getenv("GOPATH")
 			if gopath != "" {
-			}
-			c.ModulePath, err = filepath.Rel(filepath.Join(gopath, "src"), wd)
-			if err != nil {
-				return trace.Wrap(err, "invalid working directory %s in GOPATH mode", wd)
+				c.ModulePath, err = filepath.Rel(filepath.Join(gopath, "src"), wd)
+				if err != nil {
+					return trace.Wrap(err, "invalid working directory %s in GOPATH mode", wd)
+				}
 			}
 		}
 	}
@@ -78,7 +79,7 @@ func (m *Magnet) printHeader() {
 		fmt.Println("Build:   ", m.BuildDir)
 	}
 	if m.BuildDir != "" {
-		fmt.Println("Cache:   ", m.CacheDir())
+		fmt.Println("Cache:   ", m.cacheDir())
 	}
 }
 
@@ -100,10 +101,10 @@ var outputOnce sync.Once
 
 // Root creates a root vertex for executing and capturing status of each build target.
 func Root(c Config) *Magnet {
-	const statusChanSize = 128
-
 	rootOnce.Do(func() {
-		c.CheckAndSetDefaults()
+		if err := c.checkAndSetDefaults(); err != nil {
+			panic(err.Error())
+		}
 
 		now := time.Now()
 		root = &Magnet{
@@ -174,13 +175,9 @@ var cacheDir = E(EnvVar{
 	Default: "build/cache",
 })
 
-func (c Config) CacheDir() string {
-	return filepath.Join(cacheDir, "magnet", c.ModulePath)
-}
-
 // AbsCacheDir is the configured cache directory as an absolute path.
 func (c Config) AbsCacheDir() (path string, err error) {
-	if filepath.IsAbs(c.CacheDir()) {
+	if filepath.IsAbs(c.cacheDir()) {
 		return cacheDir, nil
 	}
 
@@ -188,7 +185,7 @@ func (c Config) AbsCacheDir() (path string, err error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return filepath.Join(wd, c.CacheDir()), nil
+	return filepath.Join(wd, c.cacheDir()), nil
 }
 
 func InitOutput() {
@@ -215,6 +212,13 @@ func InitOutput() {
 			)
 		}()
 	})
+}
+
+func (c Config) cacheDir() string {
+	if c.CacheDir != "" {
+		return filepath.Join(c.CacheDir, "magnet", c.ModulePath)
+	}
+	return filepath.Join(cacheDir, "magnet", c.ModulePath)
 }
 
 func (m *Magnet) root() *Magnet {
