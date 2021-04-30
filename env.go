@@ -29,12 +29,12 @@ func (m *Magnet) E(e EnvVar) string {
 		panic("Secrets shouldn't be embedded with defaults")
 	}
 
-	if v, ok := m.importedEnviron[e.Key]; ok {
+	if v, ok := m.ImportEnv[e.Key]; ok {
 		e.Value = v
 	} else {
 		e.Value = os.Getenv(e.Key)
 	}
-	m.environ[e.Key] = e
+	m.env[e.Key] = e
 
 	return m.MustGetEnv(e.Key)
 }
@@ -55,7 +55,7 @@ func (m *Magnet) MustGetEnv(key string) (value string) {
 // imported from existing environment
 func (m *Magnet) GetEnv(key string) (value string, exists bool) {
 	var v EnvVar
-	if v, exists = m.environ[key]; !exists {
+	if v, exists = m.env[key]; !exists {
 		return "", false
 	}
 	if v.Value != "" {

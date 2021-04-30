@@ -30,7 +30,7 @@ type SolveStatusLogger struct {
 }
 
 // newSolveStatusLogger creates a routine that copies and logs status messages to log files on disk.
-func newSolveStatusLogger(baseDir string, redactor redactor) *SolveStatusLogger {
+func newSolveStatusLogger(baseDir string) (*SolveStatusLogger, error) {
 	const statusChanSize = 128
 
 	s := &SolveStatusLogger{
@@ -46,23 +46,25 @@ func newSolveStatusLogger(baseDir string, redactor redactor) *SolveStatusLogger 
 
 	err := os.MkdirAll(s.dirReal(), 0755)
 	if err != nil {
-		panic(trace.DebugReport(trace.ConvertSystemError(err)))
+		return nil, trace.Wrap(trace.ConvertSystemError(err))
 	}
 
 	_ = os.Remove(s.dirLink())
 	err = os.Symlink(s.time.Format("20060102150405"), s.dirLink())
 	if err != nil {
-		panic(trace.DebugReport(trace.ConvertSystemError(err)))
+		return nil, trace.Wrap(trace.ConvertSystemError(err))
 	}
 
-	go s.tee(redactor)
-	go s.writeLogs()
-
-	return s
+	return s, nil
 }
 
 type redactor interface {
 	redact(s string) string
+}
+
+func (s *SolveStatusLogger) start(redactor redactor) {
+	go s.tee(redactor)
+	go s.writeLogs()
 }
 
 func (s *SolveStatusLogger) dirReal() string {

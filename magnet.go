@@ -39,9 +39,8 @@ type Config struct {
 	// PlainProgress specifies whether the logger uses fancy progress reporting.
 	// Set to true to see streaming output (e.g. on CI)
 	PlainProgress bool
-	// Environ specifies the logger's environment configuration
-	Environ map[string]EnvVar
-	// ImportEnv optionally specifies the external environment
+	// ImportEnv optionally specifies the external configuration as a set of
+	// environment variables
 	ImportEnv map[string]string
 }
 
@@ -105,9 +104,7 @@ type Magnet struct {
 	root         MagnetTarget
 
 	solveErrC chan error
-
-	environ         map[string]EnvVar
-	importedEnviron map[string]string
+	env       map[string]EnvVar
 }
 
 // MagnetTarget describes a child logging target
@@ -123,9 +120,12 @@ func Root(c Config) (*Magnet, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	statusLogger, err := newSolveStatusLogger(c.LogDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	now := time.Now()
-	redactor := newSecretsRedactor(c)
-	statusLogger := newSolveStatusLogger(c.LogDir, redactor)
 	root := &Magnet{
 		Config: c,
 		root: MagnetTarget{
@@ -144,9 +144,9 @@ func Root(c Config) (*Magnet, error) {
 	return root, nil
 }
 
-func newSecretsRedactor(config Config) secretsRedactor {
+func newSecretsRedactor(env map[string]EnvVar) secretsRedactor {
 	var secrets []EnvVar
-	for _, value := range config.Environ {
+	for _, value := range env {
 		if value.Secret {
 			secrets = append(secrets, value)
 		}
@@ -226,6 +226,9 @@ func (c Config) AbsCacheDir() (path string, err error) {
 
 // InitOutput starts the internal progress logging process
 func (m *Magnet) InitOutput() {
+	redactor := newSecretsRedactor(m.env)
+	m.statusLogger.start(redactor)
+
 	if m.PrintConfig {
 		m.printHeader()
 	}
