@@ -104,9 +104,12 @@ type Magnet struct {
 	statusLogger *SolveStatusLogger
 	root         MagnetTarget
 
-	solveErrC chan error
-	env       map[string]EnvVar
+	env map[string]EnvVar
 
+	wg  sync.WaitGroup
+	ctx context.Context
+	// cancel cancels the logger process
+	cancel         context.CancelFunc
 	initOutputOnce sync.Once
 }
 
@@ -129,6 +132,7 @@ func Root(c Config) (*Magnet, error) {
 	}
 
 	now := time.Now()
+	ctx, cancel := context.WithCancel(context.Background())
 	root := &Magnet{
 		Config: c,
 		root: MagnetTarget{
@@ -138,10 +142,11 @@ func Root(c Config) (*Magnet, error) {
 				Completed: &now,
 			},
 		},
-		solveErrC:    make(chan error, 1),
 		status:       statusLogger.source,
 		statusLogger: statusLogger,
 		env:          make(map[string]EnvVar),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 	// :-)
 	root.root.root = root
@@ -177,9 +182,8 @@ func (r secretsRedactor) redact(s string) string {
 //  if it's currently running
 func (m *Magnet) Shutdown() error {
 	close(m.status)
-	if err := <-m.solveErrC; err != nil {
-		return trace.Wrap(err)
-	}
+	m.cancel()
+	m.wg.Wait()
 	return nil
 }
 
@@ -192,7 +196,7 @@ func (m *Magnet) Target(name string) *MagnetTarget {
 }
 
 func (m *MagnetTarget) Target(name string) *MagnetTarget {
-	m.initOutput()
+	m.root.initOutput()
 	return m.newTarget(&progressui.Vertex{
 		Digest: digest.FromString(name),
 		Name:   name,
@@ -248,14 +252,16 @@ func (m *Magnet) initOutput() {
 			}
 		}
 
+		m.wg.Add(1)
 		go func() {
-			m.solveErrC <- progressui.DisplaySolveStatus(
-				context.TODO(),
+			progressui.DisplaySolveStatus(
+				m.ctx,
 				m.root.vertex.Name,
 				c,
 				os.Stdout,
 				m.statusLogger.destination,
 			)
+			m.wg.Done()
 		}()
 	})
 }
