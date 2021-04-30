@@ -22,12 +22,9 @@ type downloadMetadata struct {
 	SHA2Sum string
 }
 
-type DownloadResult struct {
-}
-
 // Download begins a download of a url but doesn't block.
 // Returns a future that when called will block until it can return the path to the file on disk or an error.
-func (m *Magnet) DownloadFuture(url string) func() (url string, path string, err error) {
+func (m *MagnetTarget) DownloadFuture(url string) func() (url string, path string, err error) {
 	errC := make(chan error, 1)
 
 	var path string
@@ -44,21 +41,19 @@ func (m *Magnet) DownloadFuture(url string) func() (url string, path string, err
 			return url, "", trace.Wrap(err)
 		}
 		return url, path, nil
-
 	}
-
 }
 
 // Download will download a file from a remote URL. It's optimized for working with a local cache, and will send
 // request headers to the upstream server and only download the file if cached or missing from the local cache.
-func (m *Magnet) Download(url string) (path string, err error) {
+func (m *MagnetTarget) Download(url string) (path string, err error) {
 	progress := dlProgressWriter{
 		m:   m,
 		url: url,
 	}
 	progress.Init()
 
-	path = filepath.Join(m.cacheDir(), "dl", digest.FromString(url).String())
+	path = filepath.Join(m.root.cacheDir(), "dl", digest.FromString(url).String())
 
 	metadata, err := getMetadata(path)
 	if err != nil && !trace.IsNotFound(err) {
@@ -135,7 +130,7 @@ func (m *Magnet) Download(url string) (path string, err error) {
 }
 
 type dlProgressWriter struct {
-	m       *Magnet
+	m       *MagnetTarget
 	url     string
 	total   int64
 	current int64
@@ -144,35 +139,35 @@ type dlProgressWriter struct {
 func (d *dlProgressWriter) Init() {
 	vertexStatus := &progressui.VertexStatus{
 		ID:        d.url,
-		Vertex:    d.m.Vertex.Digest,
+		Vertex:    d.m.vertex.Digest,
 		Total:     d.total,
 		Current:   d.current,
 		Timestamp: time.Now(),
-		Started:   d.m.Vertex.Started,
+		Started:   d.m.vertex.Started,
 	}
 	status := &progressui.SolveStatus{
 		Statuses: []*progressui.VertexStatus{vertexStatus},
 	}
 
-	d.m.root().status <- status
+	d.m.root.status <- status
 }
 
 func (d *dlProgressWriter) Complete() {
 	now := time.Now()
 	vertexStatus := &progressui.VertexStatus{
 		ID:        d.url,
-		Vertex:    d.m.Vertex.Digest,
+		Vertex:    d.m.vertex.Digest,
 		Total:     d.total,
 		Current:   d.current,
 		Timestamp: time.Now(),
-		Started:   d.m.Vertex.Started,
+		Started:   d.m.vertex.Started,
 		Completed: &now,
 	}
 	status := &progressui.SolveStatus{
 		Statuses: []*progressui.VertexStatus{vertexStatus},
 	}
 
-	d.m.root().status <- status
+	d.m.root.status <- status
 }
 
 func (d *dlProgressWriter) Write(data []byte) (int, error) {
@@ -180,17 +175,17 @@ func (d *dlProgressWriter) Write(data []byte) (int, error) {
 
 	vertexStatus := &progressui.VertexStatus{
 		ID:        d.url,
-		Vertex:    d.m.Vertex.Digest,
+		Vertex:    d.m.vertex.Digest,
 		Total:     d.total,
 		Current:   d.current,
 		Timestamp: time.Now(),
-		Started:   d.m.Vertex.Started,
+		Started:   d.m.vertex.Started,
 	}
 	status := &progressui.SolveStatus{
 		Statuses: []*progressui.VertexStatus{vertexStatus},
 	}
 
-	d.m.root().status <- status
+	d.m.root.status <- status
 
 	return len(data), nil
 }

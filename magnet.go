@@ -6,29 +6,43 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
+	"strings"
 	"time"
 
-	"github.com/containerd/console"
-	"github.com/gravitational/trace"
-
-	//"github.com/moby/buildkit/util/progress/progressui"
+	"golang.org/x/mod/modfile"
 
 	"github.com/gravitational/magnet/pkg/progressui"
+	"github.com/gravitational/trace"
 
+	"github.com/containerd/console"
 	"github.com/opencontainers/go-digest"
-
-	"golang.org/x/mod/modfile"
 )
 
+// Config defines logger's configuration
 type Config struct {
-	LogDir   string
-	Version  string
+	// LogDir optionally specifies the logging directory root
+	LogDir string
+	// BuildDir optionally specifies the build directory root.
+	// It is customary to output build artifacts into build directory
+	// TODO(dima): remove
 	BuildDir string
+	// CacheDir optionally specifies the artifact cache directory root
 	CacheDir string
 
+	// ModulePath specifies the path of the Go module being built
+	ModulePath string
+	// Version specifies the module version
+	Version string
+
+	// PrintConfig configures whether magnet will output its configuration
 	PrintConfig bool
-	ModulePath  string
+	// PlainProgress specifies whether the logger uses fancy progress reporting.
+	// Set to true to see streaming output (e.g. on CI)
+	PlainProgress bool
+	// Environ specifies the logger's environment configuration
+	Environ map[string]EnvVar
+	// ImportEnv optionally specifies the external environment
+	ImportEnv map[string]string
 }
 
 func (c *Config) checkAndSetDefaults() error {
@@ -74,111 +88,133 @@ func (m *Magnet) printHeader() {
 	if m.Version != "" {
 		fmt.Println("Version: ", m.Version)
 	}
-
 	if m.BuildDir != "" {
 		fmt.Println("Build:   ", m.BuildDir)
 	}
-	if m.BuildDir != "" {
+	if m.CacheDir != "" {
 		fmt.Println("Cache:   ", m.cacheDir())
 	}
 }
 
+// Magnet describes the root logger
 type Magnet struct {
 	Config
 
-	Vertex *progressui.Vertex
-	parent *Magnet
-	status chan *progressui.SolveStatus
-
+	status       chan *progressui.SolveStatus
 	statusLogger *SolveStatusLogger
+	root         MagnetTarget
 
+	solveErrC chan error
+
+	environ         map[string]EnvVar
+	importedEnviron map[string]string
+}
+
+// MagnetTarget describes a child logging target
+type MagnetTarget struct {
+	root   *Magnet
+	vertex *progressui.Vertex
 	cached bool
 }
 
-var root *Magnet
-var rootOnce sync.Once
-var outputOnce sync.Once
-
 // Root creates a root vertex for executing and capturing status of each build target.
-func Root(c Config) *Magnet {
-	rootOnce.Do(func() {
-		if err := c.checkAndSetDefaults(); err != nil {
-			panic(err.Error())
-		}
+func Root(c Config) (*Magnet, error) {
+	if err := c.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		now := time.Now()
-		root = &Magnet{
-			Config: c,
-			Vertex: &progressui.Vertex{
+	now := time.Now()
+	redactor := newSecretsRedactor(c)
+	statusLogger := newSolveStatusLogger(c.LogDir, redactor)
+	root := &Magnet{
+		Config: c,
+		root: MagnetTarget{
+			vertex: &progressui.Vertex{
 				Digest:    digest.FromString("root"),
 				Started:   &now,
 				Completed: &now,
 			},
-			statusLogger: newSolveStatusLogger(c.LogDir),
-		}
-
-		root.status = root.statusLogger.source
-	})
-
-	return root
+		},
+		solveErrC:    make(chan error, 1),
+		status:       statusLogger.source,
+		statusLogger: statusLogger,
+	}
+	// :-)
+	root.root.root = root
+	return root, nil
 }
 
-var solveErrC = make(chan error, 1)
+func newSecretsRedactor(config Config) secretsRedactor {
+	var secrets []EnvVar
+	for _, value := range config.Environ {
+		if value.Secret {
+			secrets = append(secrets, value)
+		}
+	}
+	return secretsRedactor{secrets: secrets}
+}
+
+// secretsRedactor redacts literal secrets in a text stream.
+// Implements redactor
+type secretsRedactor struct {
+	secrets []EnvVar
+}
+
+func (r secretsRedactor) redact(s string) string {
+	for _, secret := range r.secrets {
+		if len(secret.Value) > 0 {
+			s = strings.ReplaceAll(s, secret.Value, "<redacted>")
+		}
+	}
+	return s
+}
 
 // Shutdown indicates that the program is exiting, and we should shutdown the progressui
 //  if it's currently running
-func Shutdown() error {
-	if root != nil {
-		close(root.status)
-		if err := <-solveErrC; err != nil {
-			return trace.Wrap(err)
-		}
+func (m *Magnet) Shutdown() error {
+	close(m.status)
+	if err := <-m.solveErrC; err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (m *Magnet) Target(name string) *Magnet {
-	InitOutput()
+func (m *Magnet) Target(name string) *MagnetTarget {
+	return m.root.newTarget(&progressui.Vertex{
+		Digest: digest.FromString(name),
+		Name:   name,
+	})
+}
 
+func (m *MagnetTarget) Target(name string) *MagnetTarget {
+	return m.newTarget(&progressui.Vertex{
+		Digest: digest.FromString(name),
+		Name:   name,
+		// the root vertex doesn't get fully added to the progress ui. So only add a parent if we're not root
+		Inputs: []digest.Digest{m.vertex.Digest},
+	})
+}
+
+func (m *MagnetTarget) newTarget(vertex *progressui.Vertex) *MagnetTarget {
 	now := time.Now()
-	vertex := &progressui.Vertex{
-		Digest:  digest.FromString(name),
-		Name:    name,
-		Started: &now,
-	}
-
-	// the root vertex doesn't get fully added to the progress ui. So only add a parent if we're not root
-	if m.parent != nil {
-		vertex.Inputs = []digest.Digest{m.Vertex.Digest}
-	}
+	vertex.Started = &now
 
 	status := &progressui.SolveStatus{
 		Vertexes: []*progressui.Vertex{vertex},
 	}
 
-	m.root().status <- status
+	m.root.status <- status
 
-	return &Magnet{
-		Vertex: vertex,
-		parent: m,
+	return &MagnetTarget{
+		vertex: vertex,
+		root:   m.root,
 	}
 }
-
-var debiantFrontend = E(EnvVar{
-	Key:   "DEBIAN_FRONTEND",
-	Short: "Set to noninteractive or stderr to null to enable non-interactive output",
-})
-
-var cacheDir = E(EnvVar{
-	Key:     "XDG_CACHE_HOME",
-	Short:   "Location to store/cache build assets",
-	Default: "build/cache",
-})
 
 // AbsCacheDir is the configured cache directory as an absolute path.
 func (c Config) AbsCacheDir() (path string, err error) {
 	if filepath.IsAbs(c.cacheDir()) {
-		return cacheDir, nil
+		return c.cacheDir(), nil
 	}
 
 	wd, err := os.Getwd()
@@ -188,75 +224,61 @@ func (c Config) AbsCacheDir() (path string, err error) {
 	return filepath.Join(wd, c.cacheDir()), nil
 }
 
-func InitOutput() {
-	outputOnce.Do(func() {
-		if root.PrintConfig {
-			root.printHeader()
+// InitOutput starts the internal progress logging process
+func (m *Magnet) InitOutput() {
+	if m.PrintConfig {
+		m.printHeader()
+	}
+
+	var c console.Console
+
+	if !m.PlainProgress {
+		if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
+			c = cn
 		}
+	}
 
-		var c console.Console
-
-		if debiantFrontend != "noninteractive" {
-			if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
-				c = cn
-			}
-		}
-
-		go func() {
-			solveErrC <- progressui.DisplaySolveStatus(
-				context.TODO(),
-				root.Vertex.Name,
-				c,
-				os.Stdout,
-				root.statusLogger.destination,
-			)
-		}()
-	})
+	go func() {
+		m.solveErrC <- progressui.DisplaySolveStatus(
+			context.TODO(),
+			m.root.vertex.Name,
+			c,
+			os.Stdout,
+			m.statusLogger.destination,
+		)
+	}()
 }
 
 func (c Config) cacheDir() string {
-	if c.CacheDir != "" {
-		return filepath.Join(c.CacheDir, "magnet", c.ModulePath)
-	}
-	return filepath.Join(cacheDir, "magnet", c.ModulePath)
-}
-
-func (m *Magnet) root() *Magnet {
-	root := m
-	for root.parent != nil {
-		root = root.parent
-	}
-
-	return root
+	return filepath.Join(c.CacheDir, "magnet", c.ModulePath)
 }
 
 // Complete marks the current task as complete.
-func (m *Magnet) Complete(err error) {
+func (m *MagnetTarget) Complete(err error) {
 	now := time.Now()
-	m.Vertex.Completed = &now
-	m.Vertex.Cached = m.cached
-	m.Vertex.Error = trace.DebugReport(err)
-
-	m.root().status <- &progressui.SolveStatus{
+	m.vertex.Completed = &now
+	m.vertex.Cached = m.cached
+	m.vertex.Error = trace.DebugReport(err)
+	m.root.status <- &progressui.SolveStatus{
 		Vertexes: []*progressui.Vertex{
-			m.Vertex,
+			m.vertex,
 		},
 	}
 }
 
 // SetCached marks the current task as cached when it's completed.
-func (m *Magnet) SetCached(cached bool) {
+func (m *MagnetTarget) SetCached(cached bool) {
 	m.cached = cached
 }
 
 // Println allows writing log entries to the log output for the target.
-func (m *Magnet) Println(args ...interface{}) {
+func (m *MagnetTarget) Println(args ...interface{}) {
 	msg := fmt.Sprintln(args...)
 
-	m.root().status <- &progressui.SolveStatus{
+	m.root.status <- &progressui.SolveStatus{
 		Logs: []*progressui.VertexLog{
 			{
-				Vertex:    m.Vertex.Digest,
+				Vertex:    m.vertex.Digest,
 				Stream:    STDOUT,
 				Data:      []byte(msg),
 				Timestamp: time.Now(),
@@ -266,7 +288,7 @@ func (m *Magnet) Println(args ...interface{}) {
 }
 
 // Printlnf allows writing log entries to the log output for the target.
-func (m *Magnet) Printlnf(format string, args ...interface{}) {
+func (m *MagnetTarget) Printlnf(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	m.Println(msg)
 }

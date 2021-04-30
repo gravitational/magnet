@@ -130,11 +130,11 @@ type GolangConfigBuild struct {
 	// Remove all filesystem paths from the resulting executable
 	TrimPath bool
 
-	magnet *Magnet
+	target *MagnetTarget
 }
 
 func (m *GolangConfigBuild) cacheDir() (path string, err error) {
-	absDir, err := m.magnet.AbsCacheDir()
+	absDir, err := m.target.root.AbsCacheDir()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -146,17 +146,17 @@ func (m *GolangConfigBuild) cacheDir() (path string, err error) {
 }
 
 // GolangBuild returns a builder that can be used to build a golang binary.
-func (m *Magnet) GolangBuild() *GolangConfigBuild {
+func (m *MagnetTarget) GolangBuild() *GolangConfigBuild {
 	return &GolangConfigBuild{
 		TrimPath: true,
-		magnet:   m,
+		target:   m,
 	}
 }
 
 // GolangTest returns a builder that can be used to run golang tests against a set of sources.
-func (m *Magnet) GolangTest() *GolangConfigTest {
+func (m *MagnetTarget) GolangTest() *GolangConfigTest {
 	return &GolangConfigTest{
-		magnet: m,
+		target: m,
 	}
 }
 
@@ -339,7 +339,7 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		return trace.Wrap(err, "failed to create build cache directory")
 	}
 
-	cmd := m.magnet.DockerRun().
+	cmd := m.target.DockerRun().
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
 		SetGID(fmt.Sprint(os.Getgid())).
@@ -366,7 +366,7 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 
 func (m *GolangConfigBuild) buildLocal(ctx context.Context, packages ...string) error {
 	gocmd := m.buildCmd(packages...)
-	_, err := m.magnet.Exec().SetEnvs(m.Env).Run(ctx, gocmd[0], gocmd[1:]...)
+	_, err := m.target.Exec().SetEnvs(m.Env).Run(ctx, gocmd[0], gocmd[1:]...)
 	return trace.Wrap(err)
 }
 
@@ -387,11 +387,11 @@ func (m *GolangConfigBuild) buildCmd(packages ...string) []string {
 type GolangConfigTest struct {
 	GolangConfigCommon
 
-	magnet *Magnet
+	target *MagnetTarget
 }
 
 func (m *GolangConfigTest) cacheDir() (path string, err error) {
-	absDir, err := m.magnet.AbsCacheDir()
+	absDir, err := m.target.root.AbsCacheDir()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -435,7 +435,7 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		return trace.Wrap(err, "failed to create build cache directory")
 	}
 
-	cmd := m.magnet.DockerRun().
+	cmd := m.target.DockerRun().
 		SetRemove(true).
 		SetUID(fmt.Sprint(os.Getuid())).
 		SetGID(fmt.Sprint(os.Getgid())).
@@ -461,7 +461,7 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 
 func (m *GolangConfigTest) testLocal(ctx context.Context, packages ...string) error {
 	gocmd := m.builcCmd(packages...)
-	_, err := m.magnet.Exec().SetEnvs(m.Env).Run(ctx, gocmd[0], gocmd[1:]...)
+	_, err := m.target.Exec().SetEnvs(m.Env).Run(ctx, gocmd[0], gocmd[1:]...)
 	return trace.Wrap(err)
 }
 

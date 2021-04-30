@@ -14,30 +14,23 @@ limitations under the License.
 package common
 
 import (
-	"os"
+	"io"
 	"sort"
 
 	"github.com/gravitational/magnet"
-	"github.com/magefile/mage/mg"
+
 	"github.com/olekukonko/tablewriter"
 )
 
-type Help mg.Namespace
-
-// HelpEnvs lists environment variables that can override build options
-func (Help) Envs() error {
+// WriteEnvs outputs environment variables that can override build options to w
+func WriteEnvs(environ map[string]magnet.EnvVar, w io.Writer) error {
 	var result [][]string
 
-	for key, value := range magnet.EnvVars {
+	for key, value := range environ {
 		if value.Secret {
 			result = append(result, []string{key, "<redacted>", "", value.Short})
 		} else {
-			d := value.Default
-			if d == "" {
-				d = magnet.ImportEnvVars[key]
-			}
-
-			result = append(result, []string{key, value.Value, d, value.Short})
+			result = append(result, []string{key, value.Value, value.Default, value.Short})
 		}
 	}
 
@@ -45,7 +38,7 @@ func (Help) Envs() error {
 		return result[i][0] < result[j][0]
 	})
 
-	table := tablewriter.NewWriter(os.Stdout)
+	table := tablewriter.NewWriter(w)
 	table.SetHeader([]string{"Env", "Value", "Default", "Short Description"})
 	table.SetBorder(false)
 	table.SetAutoWrapText(false)
