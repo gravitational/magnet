@@ -180,11 +180,10 @@ func (r secretsRedactor) redact(s string) string {
 
 // Shutdown indicates that the program is exiting, and we should shutdown the progressui
 //  if it's currently running
-func (m *Magnet) Shutdown() error {
+func (m *Magnet) Shutdown() {
 	close(m.status)
 	m.cancel()
 	m.wg.Wait()
-	return nil
 }
 
 func (m *Magnet) Target(name string) *MagnetTarget {
