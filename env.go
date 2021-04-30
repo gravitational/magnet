@@ -1,6 +1,7 @@
 package magnet
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -44,10 +45,10 @@ func (m *Magnet) E(e EnvVar) string {
 // imported from existing environment - otherwise the function will panic.
 // For non-panicking version use GetEnv
 func (m *Magnet) MustGetEnv(key string) (value string) {
-	if v, ok := m.GetEnv(key); !ok {
+	if v, ok := m.GetEnv(key); ok {
 		return v
 	}
-	panic("Requested environment variable hasn't been registered")
+	panic(fmt.Sprintf("Requested environment variable %q hasn't been registered", key))
 }
 
 // GetEnv returns the value of the environment variable given with key.

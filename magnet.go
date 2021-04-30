@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/mod/modfile"
@@ -105,6 +106,8 @@ type Magnet struct {
 
 	solveErrC chan error
 	env       map[string]EnvVar
+
+	initOutputOnce sync.Once
 }
 
 // MagnetTarget describes a child logging target
@@ -138,6 +141,7 @@ func Root(c Config) (*Magnet, error) {
 		solveErrC:    make(chan error, 1),
 		status:       statusLogger.source,
 		statusLogger: statusLogger,
+		env:          make(map[string]EnvVar),
 	}
 	// :-)
 	root.root.root = root
@@ -180,6 +184,7 @@ func (m *Magnet) Shutdown() error {
 }
 
 func (m *Magnet) Target(name string) *MagnetTarget {
+	m.initOutput()
 	return m.root.newTarget(&progressui.Vertex{
 		Digest: digest.FromString(name),
 		Name:   name,
@@ -187,6 +192,7 @@ func (m *Magnet) Target(name string) *MagnetTarget {
 }
 
 func (m *MagnetTarget) Target(name string) *MagnetTarget {
+	m.initOutput()
 	return m.newTarget(&progressui.Vertex{
 		Digest: digest.FromString(name),
 		Name:   name,
@@ -224,32 +230,34 @@ func (c Config) AbsCacheDir() (path string, err error) {
 	return filepath.Join(wd, c.cacheDir()), nil
 }
 
-// InitOutput starts the internal progress logging process
-func (m *Magnet) InitOutput() {
-	redactor := newSecretsRedactor(m.env)
-	m.statusLogger.start(redactor)
+// initOutput starts the internal progress logging process
+func (m *Magnet) initOutput() {
+	m.initOutputOnce.Do(func() {
+		redactor := newSecretsRedactor(m.env)
+		m.statusLogger.start(redactor)
 
-	if m.PrintConfig {
-		m.printHeader()
-	}
-
-	var c console.Console
-
-	if !m.PlainProgress {
-		if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
-			c = cn
+		if m.PrintConfig {
+			m.printHeader()
 		}
-	}
 
-	go func() {
-		m.solveErrC <- progressui.DisplaySolveStatus(
-			context.TODO(),
-			m.root.vertex.Name,
-			c,
-			os.Stdout,
-			m.statusLogger.destination,
-		)
-	}()
+		var c console.Console
+
+		if !m.PlainProgress {
+			if cn, err := console.ConsoleFromFile(os.Stderr); err == nil {
+				c = cn
+			}
+		}
+
+		go func() {
+			m.solveErrC <- progressui.DisplaySolveStatus(
+				context.TODO(),
+				m.root.vertex.Name,
+				c,
+				os.Stdout,
+				m.statusLogger.destination,
+			)
+		}()
+	})
 }
 
 func (c Config) cacheDir() string {
