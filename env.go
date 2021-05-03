@@ -64,3 +64,8 @@ func (m *Magnet) GetEnv(key string) (value string, exists bool) {
 	}
 	return v.Default, true
 }
+
+// Env returns the complete environment
+func (m *Magnet) Env() map[string]EnvVar {
+	return m.env
+}
