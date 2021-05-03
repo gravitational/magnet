@@ -23,10 +23,6 @@ import (
 type Config struct {
 	// LogDir optionally specifies the logging directory root
 	LogDir string
-	// BuildDir optionally specifies the build directory root.
-	// It is customary to output build artifacts into build directory
-	// TODO(dima): remove
-	BuildDir string
 	// CacheDir optionally specifies the artifact cache directory root
 	CacheDir string
 
@@ -52,10 +48,6 @@ func (c *Config) checkAndSetDefaults() error {
 
 	if c.LogDir == "" {
 		c.LogDir = DefaultLogDir()
-	}
-
-	if c.BuildDir == "" {
-		c.BuildDir = DefaultBuildDir(c.Version)
 	}
 
 	if c.ModulePath == "" {
@@ -87,9 +79,6 @@ func (m *Magnet) printHeader() {
 
 	if m.Version != "" {
 		fmt.Println("Version: ", m.Version)
-	}
-	if m.BuildDir != "" {
-		fmt.Println("Build:   ", m.BuildDir)
 	}
 	if m.CacheDir != "" {
 		fmt.Println("Cache:   ", m.cacheDir())
