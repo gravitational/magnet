@@ -261,9 +261,9 @@ type DockerBindMount struct {
 	Destination string
 	// Readonly causes the mount point to be mounted readonly
 	Readonly bool
-	// BindPropogation changes the bind propagation [rprivate, private, rshared, shared, rslave, slave]
+	// BindPropagation changes the bind propagation [rprivate, private, rshared, shared, rslave, slave]
 	// https://docs.docker.com/storage/bind-mounts/#configure-bind-propagation
-	BindPropogation string
+	BindPropagation string
 	// Consistency applies to Mac only and is ignored on other platforms. [consistent, delegated, cached]
 	Consistency string
 }
@@ -278,8 +278,8 @@ func (b DockerBindMount) arg() string {
 		arg += ",readonly"
 	}
 
-	if b.BindPropogation != "" {
-		arg += ",bind-propagation=" + b.BindPropogation
+	if b.BindPropagation != "" {
+		arg += ",bind-propagation=" + b.BindPropagation
 	}
 
 	if b.Consistency != "" {

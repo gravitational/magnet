@@ -1,12 +1,13 @@
 package magnet
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"go/build"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -50,26 +51,17 @@ func (c *Config) checkAndSetDefaults() error {
 		c.LogDir = DefaultLogDir()
 	}
 
-	if c.ModulePath == "" {
-		buf, err := ioutil.ReadFile("go.mod")
-		// TODO (knisbet), silently discarding the error for now
-		// detection only works if using go modules
-		if err == nil {
-			c.ModulePath = modfile.ModulePath(buf)
-		} else {
-			wd, err := os.Getwd()
-			if err != nil {
-				return trace.Wrap(err)
-			}
+	if c.ModulePath != "" {
+		return nil
+	}
 
-			gopath := os.Getenv("GOPATH")
-			if gopath != "" {
-				c.ModulePath, err = filepath.Rel(filepath.Join(gopath, "src"), wd)
-				if err != nil {
-					return trace.Wrap(err, "invalid working directory %s in GOPATH mode", wd)
-				}
-			}
-		}
+	wd, err := os.Getwd()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.ModulePath, err = getModulePath(wd)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -137,7 +129,6 @@ func Root(c Config) (*Magnet, error) {
 		ctx:          ctx,
 		cancel:       cancel,
 	}
-	// :-)
 	root.root.root = root
 	return root, nil
 }
@@ -158,10 +149,10 @@ type secretsRedactor struct {
 	secrets []EnvVar
 }
 
-func (r secretsRedactor) redact(s string) string {
+func (r secretsRedactor) redact(s []byte) []byte {
 	for _, secret := range r.secrets {
 		if len(secret.Value) > 0 {
-			s = strings.ReplaceAll(s, secret.Value, "<redacted>")
+			s = bytes.ReplaceAll(s, []byte(secret.Value), []byte("<redacted>"))
 		}
 	}
 	return s
@@ -296,4 +287,23 @@ func (m *MagnetTarget) Println(args ...interface{}) {
 func (m *MagnetTarget) Printlnf(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	m.Println(msg)
+}
+
+// getModulePath determines the module path using root
+// as the root directory
+func getModulePath(root string) (path string, err error) {
+	buf, err := ioutil.ReadFile(filepath.Join(root, "go.mod"))
+	// TODO (knisbet), silently discarding the error for now
+	// detection only works if using go modules
+	if err == nil {
+		return modfile.ModulePath(buf), nil
+	}
+	var modulePath string
+	for _, srcDir := range build.Default.SrcDirs() {
+		modulePath, err = filepath.Rel(srcDir, root)
+		if err == nil {
+			return modulePath, nil
+		}
+	}
+	return "", trace.Wrap(err, "invalid working directory %s in GOPATH mode", root)
 }

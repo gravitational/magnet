@@ -59,7 +59,7 @@ func newSolveStatusLogger(baseDir string) (*SolveStatusLogger, error) {
 }
 
 type redactor interface {
-	redact(s string) string
+	redact(s []byte) []byte
 }
 
 func (s *SolveStatusLogger) start(redactor redactor) {
@@ -88,7 +88,7 @@ func (s *SolveStatusLogger) tee(redactor redactor) {
 		// Do internal redacting of secrets from any log output, to try and reduce the risk of accidental
 		// logging of secrets
 		for i := range status.Logs {
-			status.Logs[i].Data = []byte(redactor.redact(string(status.Logs[i].Data)))
+			status.Logs[i].Data = redactor.redact(status.Logs[i].Data)
 		}
 
 		select {

@@ -3,6 +3,7 @@ package magnet
 import (
 	"context"
 	"fmt"
+	"go/build"
 	"os"
 	"path/filepath"
 	"strings"
@@ -130,7 +131,20 @@ type GolangConfigBuild struct {
 	// Remove all filesystem paths from the resulting executable
 	TrimPath bool
 
+	paths  containerPathMapping
 	target *MagnetTarget
+}
+
+// BuildContainer describes a build container image
+type BuildContainer struct {
+	// Name identifies the container image
+	Name string
+	// HostPath optionally specifies the repository path on host.
+	// Defaults to working directory of the process if unspecified
+	HostPath string
+	// ContainerPath optionally specifies the repository path inside the container.
+	// Will be computed based on host's GOPATH configuration if unspecified
+	ContainerPath string
 }
 
 func (m *GolangConfigBuild) cacheDir() (path string, err error) {
@@ -306,6 +320,29 @@ func (m *GolangConfigBuild) SetBuildContainer(value string) *GolangConfigBuild {
 	return m
 }
 
+// SetBuildContainerConfig allows specifying a docker image configuration for the build. Instead of running the build toolchain
+// directly, a docker container will be used to map the sources and run the build within the consistent image.
+func (m *GolangConfigBuild) SetBuildContainerConfig(config BuildContainer) *GolangConfigBuild {
+	m.BuildContainer = config.Name
+	m.paths.hostPath = config.HostPath
+	m.paths.containerPath = config.ContainerPath
+	return m
+}
+
+// SetHostSrcPath overrides the path to the source repository.
+// The default is to use the working directory of the process
+func (m *GolangConfigBuild) SetHostSrcPath(path string) *GolangConfigBuild {
+	m.paths.hostPath = path
+	return m
+}
+
+// SetContainerSrcPath overrides the path to the source repository inside the build container.
+// The default is to compute it based on host's GOPATH configuration.
+func (m *GolangConfigBuild) SetContainerSrcPath(path string) *GolangConfigBuild {
+	m.paths.containerPath = path
+	return m
+}
+
 // Build executes the build as configured.
 func (m *GolangConfigBuild) Build(ctx context.Context, packages ...string) error {
 	if len(m.BuildContainer) > 0 {
@@ -315,23 +352,9 @@ func (m *GolangConfigBuild) Build(ctx context.Context, packages ...string) error
 	return trace.Wrap(m.buildLocal(ctx, packages...))
 }
 
-func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string) error {
-	wd, err := os.Getwd()
-	if err != nil {
-		return trace.Wrap(err, "failed to query working directory")
-	}
-
-	// Different build containers have an inconsistent directory layout. So use a distinct directory for
-	// sources
-	wdTarget := "/host"
-
-	gopath := os.Getenv("GOPATH")
-	if gopath != "" {
-		rel, err := filepath.Rel(gopath, wd)
-		// err == we're not inside the current GOPATH, don't change the mount
-		if err == nil {
-			wdTarget = filepath.Join(wdTarget, rel)
-		}
+func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string) (err error) {
+	if err := m.paths.checkAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	cacheDir, err := m.cacheDir()
@@ -345,19 +368,19 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
+		SetEnv("GOPATH", m.paths.gopath).
 		SetEnvs(m.Env).
-		SetWorkDir(wdTarget).
+		SetWorkDir(m.paths.containerPath).
 		AddVolume(DockerBindMount{
-			Source:      wd,
-			Destination: wdTarget,
+			Source:      m.paths.hostPath,
+			Destination: m.paths.containerPath,
 			Consistency: "delegated",
 		}).
 		AddVolume(DockerBindMount{
 			Source:      cacheDir,
 			Destination: "/cache",
 			Consistency: "delegated",
-		}).
-		SetWorkDir(wdTarget)
+		})
 
 	gocmd := m.buildCmd(packages...)
 
@@ -387,6 +410,7 @@ func (m *GolangConfigBuild) buildCmd(packages ...string) []string {
 type GolangConfigTest struct {
 	GolangConfigCommon
 
+	paths  containerPathMapping
 	target *MagnetTarget
 }
 
@@ -412,22 +436,8 @@ func (m *GolangConfigTest) Test(ctx context.Context, packages ...string) error {
 }
 
 func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) error {
-	wd, err := os.Getwd()
-	if err != nil {
-		return trace.Wrap(err, "failed to query working directory")
-	}
-
-	// Our different golang containers have inconsistent directory layout.
-	// So we place code in a difrectory that doesn't conflict with either of them.
-	wdTarget := "/host"
-
-	gopath := os.Getenv("GOPATH")
-	if gopath != "" {
-		rel, err := filepath.Rel(gopath, wd)
-		// err == we're not inside the current GOPATH, don't change the mount
-		if err == nil {
-			wdTarget = filepath.Join(wdTarget, rel)
-		}
+	if err := m.paths.checkAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	cacheDir, err := m.cacheDir()
@@ -441,11 +451,12 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
+		SetEnv("GOPATH", m.paths.gopath).
 		SetEnvs(m.Env).
-		SetWorkDir(wdTarget).
+		SetWorkDir(m.paths.containerPath).
 		AddVolume(DockerBindMount{
-			Source:      wd,
-			Destination: wdTarget,
+			Source:      m.paths.hostPath,
+			Destination: m.paths.containerPath,
 			Consistency: "delegated",
 		}).
 		AddVolume(DockerBindMount{
@@ -595,4 +606,59 @@ func (m *GolangConfigTest) SetGOARCH(value string) *GolangConfigTest {
 func (m *GolangConfigTest) SetBuildContainer(value string) *GolangConfigTest {
 	m.BuildContainer = value
 	return m
+}
+
+// SetBuildContainerConfig allows specifying a docker image configuration for the test. Instead of running the build toolchain
+// directly, a docker container will be used to map the sources and run the build within the consistent image.
+func (m *GolangConfigTest) SetBuildContainerConfig(config BuildContainer) *GolangConfigTest {
+	m.BuildContainer = config.Name
+	m.paths.hostPath = config.HostPath
+	m.paths.containerPath = config.ContainerPath
+	return m
+}
+
+func (r *containerPathMapping) checkAndSetDefaults() (err error) {
+	if r.hostPath == "" {
+		r.hostPath, err = os.Getwd()
+		if err != nil {
+			return trace.Wrap(err, "failed to query working directory")
+		}
+	}
+	// Different build containers have an inconsistent directory layout.
+	// So use a distinct directory for sources
+	if r.containerPath == "" {
+		r.containerPath = dockerSrcPathFromGopath(r.hostPath, "/host")
+		if r.containerPath != "/host" {
+			r.gopath = "/host"
+		}
+	}
+	return nil
+}
+
+type containerPathMapping struct {
+	// hostPath optionally specifies the path to the package repository on host.
+	// Defaults to process' working directory
+	hostPath string
+
+	// continerPath optionally specifies the path to the package repository inside
+	// the container.
+	// Will be computed automatically based on host's GOPATH configuration if unspecified
+	containerPath string
+
+	// gopath optionally specifies the container's GOPATH in GOPATH mode.
+	// GOPATH can be overridden with GO111MODULE=on in Go 1.11+
+	gopath string
+}
+
+// dockerSrcPathFromGopath builds a path for Go repository at root
+// using host's GOPATH configuration.
+func dockerSrcPathFromGopath(root, defaultPath string) string {
+	for _, srcDir := range build.Default.SrcDirs() {
+		rel, err := filepath.Rel(srcDir, root)
+		// err != nil == we're not inside the current GOPATH, don't change the mount
+		if err == nil {
+			return filepath.Join(defaultPath, rel)
+		}
+	}
+	return defaultPath
 }
