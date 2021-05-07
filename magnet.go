@@ -59,9 +59,14 @@ func (c *Config) checkAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	c.ModulePath, err = getModulePath(wd)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if !filepath.IsAbs(c.CacheDir) {
+		c.CacheDir = filepath.Join(wd, c.CacheDir)
 	}
 	return nil
 }
@@ -201,16 +206,8 @@ func (m *MagnetTarget) newTarget(vertex *progressui.Vertex) *MagnetTarget {
 }
 
 // AbsCacheDir is the configured cache directory as an absolute path.
-func (c Config) AbsCacheDir() (path string, err error) {
-	if filepath.IsAbs(c.cacheDir()) {
-		return c.cacheDir(), nil
-	}
-
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return filepath.Join(wd, c.cacheDir()), nil
+func (c Config) AbsCacheDir() (path string) {
+	return c.cacheDir()
 }
 
 // initOutput starts the internal progress logging process

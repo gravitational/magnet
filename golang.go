@@ -148,13 +148,9 @@ type BuildContainer struct {
 }
 
 func (m *GolangConfigBuild) cacheDir() (path string, err error) {
-	absDir, err := m.target.root.AbsCacheDir()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	path = filepath.Join(absDir, "go")
+	path = filepath.Join(m.target.root.AbsCacheDir(), "go")
 	if err := os.MkdirAll(path, 0755); err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.ConvertSystemError(err)
 	}
 	return path, nil
 }
@@ -329,20 +325,6 @@ func (m *GolangConfigBuild) SetBuildContainerConfig(config BuildContainer) *Gola
 	return m
 }
 
-// SetHostSrcPath overrides the path to the source repository.
-// The default is to use the working directory of the process
-func (m *GolangConfigBuild) SetHostSrcPath(path string) *GolangConfigBuild {
-	m.paths.hostPath = path
-	return m
-}
-
-// SetContainerSrcPath overrides the path to the source repository inside the build container.
-// The default is to compute it based on host's GOPATH configuration.
-func (m *GolangConfigBuild) SetContainerSrcPath(path string) *GolangConfigBuild {
-	m.paths.containerPath = path
-	return m
-}
-
 // Build executes the build as configured.
 func (m *GolangConfigBuild) Build(ctx context.Context, packages ...string) error {
 	if len(m.BuildContainer) > 0 {
@@ -415,13 +397,9 @@ type GolangConfigTest struct {
 }
 
 func (m *GolangConfigTest) cacheDir() (path string, err error) {
-	absDir, err := m.target.root.AbsCacheDir()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	path = filepath.Join(absDir, "go")
+	path = filepath.Join(m.target.root.AbsCacheDir(), "go")
 	if err := os.MkdirAll(path, 0755); err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.ConvertSystemError(err)
 	}
 	return path, nil
 }
