@@ -1,5 +1,5 @@
-github.com/a-palchikov/mage v1.9.1-0.20210430142829-b12b33f4b1e8 h1:vP7tvYNeieG4zy4zD1A2YCMG/LyUXkLuch9/umCDkFo=
-github.com/a-palchikov/mage v1.9.1-0.20210430142829-b12b33f4b1e8/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
+github.com/a-palchikov/mage v1.9.1-0.20210510111021-76a5e1abe5f7 h1:1Hhg/W0LBT5UnnkNlmgcDMw26qUxeTZZm8JW7WaRziQ=
+github.com/a-palchikov/mage v1.9.1-0.20210510111021-76a5e1abe5f7/go.mod h1:z5UZb/iS3GoOSn0JgWuiw7dxlurVYTu+/jHXqQg881A=
 github.com/containerd/console v1.0.0 h1:fU3UuQapBs+zLJu82NhR11Rif1ny2zfMMAyPJzSN5tQ=
 github.com/containerd/console v1.0.0/go.mod h1:8Pf4gM6VEbTNRIT26AyyU7hxdQU3MvAvxVI0sc00XBE=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
