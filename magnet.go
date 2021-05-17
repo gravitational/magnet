@@ -230,7 +230,7 @@ func (m *Magnet) initOutput() {
 
 		m.wg.Add(1)
 		go func() {
-			progressui.DisplaySolveStatus(
+			_ = progressui.DisplaySolveStatus(
 				m.ctx,
 				m.root.vertex.Name,
 				c,
