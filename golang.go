@@ -354,7 +354,6 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
-		SetEnv("GOPATH", m.paths.gopath).
 		SetEnvs(m.Env).
 		SetWorkDir(m.paths.containerPath).
 		AddVolume(DockerBindMount{
@@ -367,6 +366,9 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 			Destination: "/cache",
 			Consistency: "delegated",
 		})
+	if m.paths.gopath != "" {
+		cmd.SetEnv("GOPATH", m.paths.gopath)
+	}
 
 	gocmd := m.buildCmd(packages...)
 
@@ -446,7 +448,6 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
-		SetEnv("GOPATH", m.paths.gopath).
 		SetEnvs(m.Env).
 		SetWorkDir(m.paths.containerPath).
 		AddVolume(DockerBindMount{
@@ -459,6 +460,9 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 			Destination: "/cache",
 			Consistency: "delegated",
 		})
+	if m.paths.gopath != "" {
+		cmd.SetEnv("GOPATH", m.paths.gopath)
+	}
 
 	gocmd := m.buildCmd(packages...)
 

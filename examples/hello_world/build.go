@@ -21,9 +21,14 @@ import (
 	"github.com/gravitational/magnet"
 )
 
-var root = magnet.Root(magnet.Config{
+var root = mustRoot(magnet.Config{
 	PrintConfig: true,
+	CacheDir:    "_build",
+	LogDir:      "_build/logs",
 })
+
+// Deinit schedules the clean up tasks to run when mage exits
+var Deinit = Shutdown
 
 // HelloWorld runs a simple build target that just prints some output and exits
 func HelloWorld() (err error) {
@@ -36,4 +41,17 @@ func HelloWorld() (err error) {
 	}
 
 	return
+}
+
+// Shutdown executes magnet's clean up tasks
+func Shutdown() {
+	root.Shutdown()
+}
+
+func mustRoot(config magnet.Config) *magnet.Magnet {
+	root, err := magnet.Root(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	return root
 }

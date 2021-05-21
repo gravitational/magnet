@@ -23,27 +23,29 @@ import (
 	"github.com/gravitational/magnet"
 	"github.com/gravitational/trace"
 	"github.com/magefile/mage/mg"
-
-	// mage:import
-	_ "github.com/gravitational/magnet/common"
 )
 
 //
 // configuration parameters can be set dynamically, like where to place the build directory
 //
 
-var root = magnet.Root(magnet.Config{
+var root = mustRoot(magnet.Config{
 	PrintConfig: true,
+	LogDir:      "_build/logs",
+	CacheDir:    "_build",
 })
 
+// Deinit schedules the clean up tasks to run when mage exits
+var Deinit = Shutdown
+
 var (
-	goVersion = magnet.E(magnet.EnvVar{
+	goVersion = root.E(magnet.EnvVar{
 		Key:     "GOLANG_VER",
 		Default: "1.13.12-stretch",
 		Short:   "Set the golang version to embed within the container",
 	})
 
-	golangciVersion = magnet.E(magnet.EnvVar{
+	golangciVersion = root.E(magnet.EnvVar{
 		Key:     "GOLANGCI_VER",
 		Default: "v1.27.0",
 		Short:   "Set the golangci-lint version to embed within the container",
@@ -136,4 +138,17 @@ func Context() (err error) {
 	_, err = t.Exec().Run(context.TODO(), "docker", "images", "magnet-example")
 
 	return
+}
+
+// Shutdown executes magnet's clean up tasks (internal)
+func Shutdown() {
+	root.Shutdown()
+}
+
+func mustRoot(config magnet.Config) *magnet.Magnet {
+	root, err := magnet.Root(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	return root
 }

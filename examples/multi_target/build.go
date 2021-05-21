@@ -16,34 +16,37 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/gravitational/magnet"
+	"github.com/gravitational/magnet/common"
 	"github.com/gravitational/trace"
 	"github.com/magefile/mage/mg"
-
-	// mage:import
-	_ "github.com/gravitational/magnet/common"
 )
 
 //
 // configuration parameters can be set dynamically, like where to place the build directory
 //
 
-var root = magnet.Root(magnet.Config{
-	Version:     version,
-	LogDir:      magnet.DefaultLogDir(),
-	BuildDir:    magnet.DefaultBuildDir(version),
+var root = mustRoot(magnet.Config{
+	Version:     os.Getenv("VERSION"),
+	LogDir:      "_build/logs",
+	CacheDir:    "_build",
 	PrintConfig: true,
 })
+
+// Deinit schedules the clean up tasks to run when mage exits
+var Deinit = Shutdown
 
 //
 // Run time parameters can be set by using E to get Environment variables, with defaults and descriptions
 //
 
 var (
-	version = magnet.E(magnet.EnvVar{
+	version = root.E(magnet.EnvVar{
 		Key:     "VERSION",
 		Default: magnet.DefaultVersion(),
 		Short:   "Set the version that wll be built",
@@ -106,14 +109,14 @@ func MultipleTargets() (err error) {
 	return
 }
 
-func Dl() (err error) {
+func Dl(ctx context.Context) (err error) {
 	t := root.Target("dl")
 	defer func() { t.Complete(err) }()
 
-	mg.Deps(Dep1, Dep2)
+	mg.CtxDeps(ctx, Dep1, Dep2)
 
 	var path string
-	path, err = t.Download("https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl")
+	path, err = t.Download(ctx, "https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl")
 	//path, err = t.Download("http://ipv4.download.thinkbroadband.com/1GB.zip")
 
 	t.Println("Path: ", path)
@@ -121,15 +124,15 @@ func Dl() (err error) {
 }
 
 // DlParallel runs multiple downloads in parallel
-func DlParallel() (err error) {
+func DlParallel(ctx context.Context) (err error) {
 	t := root.Target("downloads")
 	defer func() { t.Complete(err) }()
 
-	mg.Deps(Dep1, Dep2)
+	mg.CtxDeps(ctx, Dep1, Dep2)
 
-	kubectl := t.DownloadFuture("https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl")
-	gb := t.DownloadFuture("http://ipv4.download.thinkbroadband.com/50MB.zip")
-	bad := t.DownloadFuture("http://example.com/non-existant-file")
+	kubectl := t.DownloadFuture(ctx, "https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl")
+	gb := t.DownloadFuture(ctx, "http://ipv4.download.thinkbroadband.com/50MB.zip")
+	bad := t.DownloadFuture(ctx, "http://example.com/non-existant-file")
 
 	var errors []error
 	for _, future := range []func() (string, string, error){kubectl, gb, bad} {
@@ -146,20 +149,43 @@ func DlParallel() (err error) {
 }
 
 // Dep1 is executed as a dependency of the DL tasks
-func Dep1() (err error) {
+func Dep1(ctx context.Context) (err error) {
 	t := root.Target("dep1")
 	defer func() { t.Complete(err) }()
 
-	_, err = t.Download("https://speed.hetzner.de/100MB.bin")
+	_, err = t.Download(ctx, "https://speed.hetzner.de/100MB.bin")
 	return
 }
 
 // Dep2 is executed as a dependency of the DL tasks
-func Dep2() (err error) {
+func Dep2(ctx context.Context) (err error) {
 	t := root.Target("dep2")
 	defer func() { t.Complete(err) }()
 
-	_, err = t.Download("http://speedtest-ny.turnkeyinternet.net/100mb.bin")
+	_, err = t.Download(ctx, "http://speedtest-ny.turnkeyinternet.net/100mb.bin")
 
 	return
+}
+
+type Help mg.Namespace
+
+// Envs outputs the current environment configuration
+func (Help) Envs() (err error) {
+	m := root.Target("help:envs")
+	defer func() { m.Complete(err) }()
+
+	return common.WriteEnvs(root.Env(), os.Stdout)
+}
+
+// Shutdown executes magnet's clean up tasks (internal)
+func Shutdown() {
+	root.Shutdown()
+}
+
+func mustRoot(config magnet.Config) *magnet.Magnet {
+	root, err := magnet.Root(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	return root
 }

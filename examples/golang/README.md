@@ -17,10 +17,10 @@ Hello World
 ```
 
 ## Build using a container
-`go run mage.go buildContainer`
+`go run mage.go buildInContainer`
 
 ```
-❯ go run mage.go buildContainer
+❯ go run mage.go buildInContainer
 Logs:    build/logs/latest (build/logs/20200723042056)
 Version:  v0.1.0-17-g29f9b23-dirty
 Build:    build/v0.1.0-17-g29f9b23-dirty

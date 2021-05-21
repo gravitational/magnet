@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -63,6 +64,10 @@ func (c *Config) checkAndSetDefaults() error {
 	c.ModulePath, err = getModulePath(wd)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if c.CacheDir == "" {
+		return trace.BadParameter("expected CacheDir to be set")
 	}
 
 	if !filepath.IsAbs(c.CacheDir) {
@@ -295,11 +300,9 @@ func getModulePath(root string) (path string, err error) {
 	if err == nil {
 		return modfile.ModulePath(buf), nil
 	}
-	var modulePath string
 	for _, srcDir := range build.Default.SrcDirs() {
-		modulePath, err = filepath.Rel(srcDir, root)
-		if err == nil {
-			return modulePath, nil
+		if strings.HasPrefix(root, srcDir) {
+			return strings.TrimPrefix(root, srcDir), nil
 		}
 	}
 	return "", trace.Wrap(err, "invalid working directory %s in GOPATH mode", root)

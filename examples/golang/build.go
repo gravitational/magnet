@@ -17,27 +17,38 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/gravitational/magnet"
 	"github.com/gravitational/trace"
 
-	// mage:import
-	_ "github.com/gravitational/magnet/common"
+	"github.com/magefile/mage/mg"
 )
 
 //
 // configuration parameters can be set dynamically, like where to place the build directory
 //
 
-var root = magnet.Root(magnet.Config{
+var root = mustRoot(magnet.Config{
 	PrintConfig: true,
+	LogDir:      "_build/logs",
+	CacheDir:    "_build",
 })
 
+// Deinit schedules the clean up tasks to run when mage exits
+var Deinit = Shutdown
+
 var (
-	goVersion = magnet.E(magnet.EnvVar{
+	goVersion = root.E(magnet.EnvVar{
 		Key:     "GOLANG_VER",
 		Default: "1.13.12-stretch",
 		Short:   "Set the golang version to embed within the container",
+	})
+	golangciVersion = root.E(magnet.EnvVar{
+		Key:     "GOLANGCI_VER",
+		Default: "v1.40.1",
+		Short:   "Set the golangci-lint version to embed within the container",
 	})
 )
 
@@ -56,16 +67,19 @@ func Build() (err error) {
 	return
 }
 
-// BuildContainer is an example mage target that builds a golang project within a docker container
+// BuildInContainer is an example mage target that builds a golang project within a docker container
 // Note: currently assumes project extracted to a GOPATH directory structure
-func BuildContainer() (err error) {
-	t := root.Target("build")
+func BuildInContainer(ctx context.Context) (err error) {
+	t := root.Target("buildInContainer")
 	defer func() { t.Complete(err) }()
+
+	mg.CtxDeps(ctx, BuildContainer)
 
 	err = t.GolangBuild().
 		SetOutputPath("build/example.container").
-		SetBuildContainer("golang:1.14").
-		Build(context.TODO(), "github.com/gravitational/magnet/examples/golang")
+		SetBuildContainer("builder:1.14").
+		SetEnv("GO111MODULE", "on").
+		Build(ctx, "github.com/gravitational/magnet/examples/golang")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,15 +88,45 @@ func BuildContainer() (err error) {
 
 // Test is an example mage target that runs the go compilers tests
 // Note: currently assumes project extracted to a GOPATH directory structure
-func Test() (err error) {
+func Test(ctx context.Context) (err error) {
 	t := root.Target("test")
 	defer func() { t.Complete(err) }()
 
 	err = t.GolangTest().
-		SetBuildContainer("golang:1.14").
-		Test(context.TODO(), "github.com/gravitational/magnet/examples/golang")
+		SetEnv("GO111MODULE", "on").
+		SetBuildContainer("builder:1.14").
+		Test(ctx, "github.com/gravitational/magnet/examples/golang")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return
+}
+
+// BuildContainer creates a docker container as a consistent Go environment to use for software builds.
+func BuildContainer(ctx context.Context) (err error) {
+	m := root.Target("buildContainer")
+	defer func() { m.Complete(err) }()
+
+	return m.DockerBuild().
+		AddTag("builder:1.14").
+		SetPull(true).
+		SetBuildArg("GOLANG_VER", goVersion).
+		SetBuildArg("GOLANGCI_VER", golangciVersion).
+		SetBuildArg("UID", fmt.Sprint(os.Getuid())).
+		SetBuildArg("GID", fmt.Sprint(os.Getgid())).
+		SetDockerfile("Dockerfile").
+		Build(ctx, ".")
+}
+
+// Shutdown executes magnet's clean up tasks (internal)
+func Shutdown() {
+	root.Shutdown()
+}
+
+func mustRoot(config magnet.Config) *magnet.Magnet {
+	root, err := magnet.Root(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	return root
 }
