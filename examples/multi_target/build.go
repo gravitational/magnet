@@ -35,6 +35,7 @@ var root = mustRoot(magnet.Config{
 	Version:     os.Getenv("VERSION"),
 	LogDir:      "_build/logs",
 	CacheDir:    "_build",
+	ModulePath:  "github.com/gravitational/magnet/examples/multi_target",
 	PrintConfig: true,
 })
 

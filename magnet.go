@@ -44,6 +44,15 @@ type Config struct {
 }
 
 func (c *Config) checkAndSetDefaults() error {
+	if c.CacheDir == "" {
+		return trace.BadParameter("expected CacheDir to be set")
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if c.Version == "" {
 		c.Version = DefaultVersion()
 	}
@@ -52,13 +61,12 @@ func (c *Config) checkAndSetDefaults() error {
 		c.LogDir = DefaultLogDir()
 	}
 
-	if c.ModulePath != "" {
-		return nil
+	if !filepath.IsAbs(c.CacheDir) {
+		c.CacheDir = filepath.Join(wd, c.CacheDir)
 	}
 
-	wd, err := os.Getwd()
-	if err != nil {
-		return trace.Wrap(err)
+	if c.ModulePath != "" {
+		return nil
 	}
 
 	c.ModulePath, err = getModulePath(wd)
@@ -66,13 +74,6 @@ func (c *Config) checkAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if c.CacheDir == "" {
-		return trace.BadParameter("expected CacheDir to be set")
-	}
-
-	if !filepath.IsAbs(c.CacheDir) {
-		c.CacheDir = filepath.Join(wd, c.CacheDir)
-	}
 	return nil
 }
 

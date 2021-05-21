@@ -3,7 +3,7 @@
 
 ```
 ❯ go run mage.go helloworld
-Logs:    build/logs/latest (build/logs/20200721105756)
+Logs:    _build/logs/latest (_build/logs/20200721105756)
 Version: v0.1.0-17-g29f9b23-dirty
 Cache:   _build/magnet/github.com/gravitational/magnet/examples/hello_world 
 [+] Building 5.0s (1/1) FINISHED

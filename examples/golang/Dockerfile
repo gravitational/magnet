@@ -16,6 +16,3 @@ RUN chown -R $UID:$GID /gopath
 RUN --mount=type=cache,sharing=locked,id=aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=aptcache,target=/var/cache/apt \
           DEBIAN_FRONTEND=noninteractive apt-get -q -y update --fix-missing && apt-get -q -y install libaio-dev zlib1g-dev
-
-COPY go.docker.mod ./go.mod
-COPY go.sum ./

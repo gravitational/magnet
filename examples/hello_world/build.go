@@ -25,6 +25,7 @@ var root = mustRoot(magnet.Config{
 	PrintConfig: true,
 	CacheDir:    "_build",
 	LogDir:      "_build/logs",
+	ModulePath:  "github.com/gravitational/magnet/examples/hello_world",
 })
 
 // Deinit schedules the clean up tasks to run when mage exits

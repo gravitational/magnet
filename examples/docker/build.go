@@ -33,6 +33,7 @@ var root = mustRoot(magnet.Config{
 	PrintConfig: true,
 	LogDir:      "_build/logs",
 	CacheDir:    "_build",
+	ModulePath:  "github.com/gravitational/magnet/examples/docker",
 })
 
 // Deinit schedules the clean up tasks to run when mage exits

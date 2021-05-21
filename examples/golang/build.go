@@ -34,6 +34,7 @@ var root = mustRoot(magnet.Config{
 	PrintConfig: true,
 	LogDir:      "_build/logs",
 	CacheDir:    "_build",
+	ModulePath:  "github.com/gravitational/magnet/examples/golang",
 })
 
 // Deinit schedules the clean up tasks to run when mage exits
@@ -59,7 +60,7 @@ func Build() (err error) {
 	defer func() { t.Complete(err) }()
 
 	err = t.GolangBuild().
-		SetOutputPath("build/example.local").
+		SetOutputPath("_build/example.local").
 		Build(context.TODO(), "github.com/gravitational/magnet/examples/golang")
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,7 +77,7 @@ func BuildInContainer(ctx context.Context) (err error) {
 	mg.CtxDeps(ctx, BuildContainer)
 
 	err = t.GolangBuild().
-		SetOutputPath("build/example.container").
+		SetOutputPath("_build/example.container").
 		SetBuildContainer("builder:1.14").
 		SetEnv("GO111MODULE", "on").
 		Build(ctx, "github.com/gravitational/magnet/examples/golang")
