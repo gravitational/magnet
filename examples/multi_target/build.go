@@ -50,7 +50,7 @@ var (
 	version = root.E(magnet.EnvVar{
 		Key:     "VERSION",
 		Default: magnet.DefaultVersion(),
-		Short:   "Set the version that wll be built",
+		Short:   "Set the version that will be built",
 	})
 )
 
@@ -96,7 +96,7 @@ func MultipleTargets() (err error) {
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	err5 = fmt.Errorf("Error on target 5")
+	err5 = fmt.Errorf("error on target 5")
 	t5.Println("Error: ", err5.Error())
 
 	time.Sleep(2 * time.Second)
@@ -107,7 +107,7 @@ func MultipleTargets() (err error) {
 	t5.Println("Ending")
 	time.Sleep(3 * time.Second)
 
-	return
+	return trace.Wrap(err5)
 }
 
 func Dl(ctx context.Context) (err error) {
@@ -136,8 +136,8 @@ func DlParallel(ctx context.Context) (err error) {
 	bad := t.DownloadFuture(ctx, "http://example.com/non-existant-file")
 
 	var errors []error
-	for _, future := range []func() (string, string, error){kubectl, gb, bad} {
-		url, path, err := future()
+	for _, future := range []magnet.DownloadFutureFunc{kubectl, gb, bad} {
+		url, path, err := future(ctx)
 		t.Printlnf("url: %v path: %v error: %v", url, path, trace.DebugReport(err))
 		if err != nil {
 			errors = append(errors, err)

@@ -43,7 +43,7 @@ var (
 	goVersion = root.E(magnet.EnvVar{
 		Key:     "GOLANG_VER",
 		Default: "1.13.12-stretch",
-		Short:   "Set the golang version to embed within the container",
+		Short:   "Set the Go version to embed within the container",
 	})
 
 	golangciVersion = root.E(magnet.EnvVar{
@@ -105,11 +105,7 @@ func Run() (err error) {
 			"-c",
 			"env && ls -l /wd",
 		)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return
+	return trace.Wrap(err)
 }
 
 // Exec is an example mage target that execs into a running container

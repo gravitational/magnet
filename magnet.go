@@ -30,7 +30,8 @@ type Config struct {
 
 	// ModulePath specifies the path of the Go module being built
 	ModulePath string
-	// Version specifies the module version
+	// Version specifies the module version.
+	// If unspecified, will be synthesized based on a git tag.
 	Version string
 
 	// PrintConfig configures whether magnet will output its configuration
