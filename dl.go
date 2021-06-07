@@ -36,16 +36,12 @@ func (m *MagnetTarget) DownloadFuture(ctx context.Context, url string) DownloadF
 		errC <- err
 	}()
 
-	return func(ctx context.Context) (string, string, error) {
-		select {
-		case err := <-errC:
-			if err != nil {
-				return url, "", trace.Wrap(err)
-			}
-			return url, path, nil
-		case <-ctx.Done():
-			return "", "", trace.Wrap(ctx.Err())
+	return func() (url, path string, err error) {
+		err = <-errC
+		if err != nil {
+			return url, "", trace.Wrap(err)
 		}
+		return url, path, nil
 	}
 }
 
@@ -135,7 +131,7 @@ func (m *MagnetTarget) Download(ctx context.Context, url string) (path string, e
 }
 
 // DownloadFutureFunc defines the function type returned from the DownloadFuture API
-type DownloadFutureFunc func(context.Context) (url, path string, err error)
+type DownloadFutureFunc func() (url, path string, err error)
 
 type dlProgressWriter struct {
 	m       *MagnetTarget

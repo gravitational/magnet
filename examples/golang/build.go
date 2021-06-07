@@ -136,7 +136,7 @@ func Shutdown() {
 }
 
 func buildContainer() string {
-	return fmt.Sprint("build:", version)
+	return fmt.Sprint("example-builder:", version)
 }
 
 func mustRoot(config magnet.Config) *magnet.Magnet {

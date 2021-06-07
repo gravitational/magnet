@@ -118,7 +118,6 @@ func Dl(ctx context.Context) (err error) {
 
 	var path string
 	path, err = t.Download(ctx, "https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl")
-	//path, err = t.Download("http://ipv4.download.thinkbroadband.com/1GB.zip")
 
 	t.Println("Path: ", path)
 	return
@@ -133,11 +132,11 @@ func DlParallel(ctx context.Context) (err error) {
 
 	kubectl := t.DownloadFuture(ctx, "https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl")
 	gb := t.DownloadFuture(ctx, "http://ipv4.download.thinkbroadband.com/50MB.zip")
-	bad := t.DownloadFuture(ctx, "http://example.com/non-existant-file")
+	bad := t.DownloadFuture(ctx, "http://example.com/non-existent-file")
 
 	var errors []error
 	for _, future := range []magnet.DownloadFutureFunc{kubectl, gb, bad} {
-		url, path, err := future(ctx)
+		url, path, err := future()
 		t.Printlnf("url: %v path: %v error: %v", url, path, trace.DebugReport(err))
 		if err != nil {
 			errors = append(errors, err)
