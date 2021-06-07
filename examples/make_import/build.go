@@ -17,10 +17,7 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/gravitational/magnet"
 	"github.com/gravitational/magnet/common"
@@ -32,7 +29,7 @@ var root = mustRoot(magnet.Config{
 	LogDir:      "_build/logs",
 	CacheDir:    "_build",
 	ModulePath:  "github.com/gravitational/magnet/examples/make_import",
-	ImportEnv:   importEnvFromMakefile(),
+	ImportEnv:   mustEnv(magnet.ImportEnvFromMakefile()),
 })
 
 var (
@@ -73,29 +70,9 @@ func (Help) Envs() (err error) {
 	return common.WriteEnvs(root.Env(), os.Stdout)
 }
 
-// importEnvFromMakefile invokes `make` to generate configuration for this mage script.
-// The script outputs a set of environment variables prefixed with `MAGNET_` which
-// are used as default values for the configuration variables defined by the script.
-func importEnvFromMakefile() (env map[string]string) {
-	env = make(map[string]string)
-	cmd := exec.Command("make", "magnet-vars")
-	out, err := cmd.CombinedOutput()
+func mustEnv(env map[string]string, err error) map[string]string {
 	if err != nil {
-		log.Printf("Failed to import environ from makefile: %v", err)
-		return nil
-	}
-
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		cols := strings.SplitN(line, "=", 2)
-		if len(cols) != 2 || !strings.HasPrefix(cols[0], "MAGNET_") {
-			log.Printf("Skip line that does not look like magnet envar: %q\n", line)
-			continue
-		}
-		key, value := strings.TrimPrefix(cols[0], "MAGNET_"), cols[1]
-		env[key] = value
+		panic(err.Error())
 	}
 	return env
 }

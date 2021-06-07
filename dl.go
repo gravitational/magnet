@@ -26,22 +26,23 @@ type downloadMetadata struct {
 // Download begins a download of a url but doesn't block.
 // Returns a future that when called will block until it can return the path to the file on disk or an error.
 func (m *MagnetTarget) DownloadFuture(ctx context.Context, url string) DownloadFutureFunc {
-	errC := make(chan error, 1)
-
-	var path string
+	type result struct {
+		path string
+		err  error
+	}
+	resultC := make(chan result, 1)
 
 	go func() {
 		p, err := m.Download(ctx, url)
-		path = p
-		errC <- err
+		resultC <- result{path: p, err: err}
 	}()
 
 	return func() (url, path string, err error) {
-		err = <-errC
-		if err != nil {
-			return url, "", trace.Wrap(err)
+		result := <-resultC
+		if result.err != nil {
+			return url, "", trace.Wrap(result.err)
 		}
-		return url, path, nil
+		return url, result.path, nil
 	}
 }
 

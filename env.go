@@ -1,8 +1,16 @@
 package magnet
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io"
+	"log"
 	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // EnvVar represents a configuration with optional defaults
@@ -68,4 +76,47 @@ func (m *Magnet) GetEnv(key string) (value string, exists bool) {
 // Env returns the complete environment
 func (m *Magnet) Env() map[string]EnvVar {
 	return m.env
+}
+
+// ImportEnvFromMakefile invokes `make` to generate configuration for this mage script.
+// The makefile target is assumed to be named `magnet-vars`.
+// The script outputs a set of environment variables prefixed with `MAGNET_` which
+// are used as default values for the configuration variables defined by the script.
+// Assumes the Makefile is named `Makefile`
+func ImportEnvFromMakefile() (env map[string]string, err error) {
+	cmd := exec.Command("make", "magnet-vars")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("Failed to import environ from makefile: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	return ImportEnvFromReader(bytes.NewReader(out))
+}
+
+// ImportEnvFromReader consumes configuration for this mage script from the specified reader.
+// Expects the reader to produce a list of environment variables as key=value pairs with a single
+// variable per line.
+// Only the environment variables prefixed with `MAGNET_` are considered which
+// are used as default values for the configuration variables defined by the script itself.
+func ImportEnvFromReader(r io.Reader) (env map[string]string, err error) {
+	env = make(map[string]string)
+
+	s := bufio.NewScanner(r)
+	for s.Scan() {
+		line := s.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		cols := strings.SplitN(line, "=", 2)
+		if len(cols) != 2 || !strings.HasPrefix(cols[0], "MAGNET_") {
+			log.Printf("Skip line that does not look like magnet envar: %q\n", line)
+			continue
+		}
+		key, value := strings.TrimPrefix(cols[0], "MAGNET_"), cols[1]
+		env[key] = value
+	}
+	if s.Err() != nil {
+		return nil, trace.Wrap(s.Err())
+	}
+	return env, nil
 }
