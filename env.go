@@ -25,37 +25,13 @@ type EnvVar struct {
 	Secret  bool
 }
 
-// ImportEnvFrom sets the environment importer
-func ImportEnvFrom(importer EnvImporterFunc) {
-	env.importer = importer
-}
-
-// EnvImporterFunc defines a function type to import environment from external source
-type EnvImporterFunc func() map[string]string
-
 // E defines a new environment variable specified with e.
 // Returns the current value of the variable with precedence
 // given to previously imported environment variables.
 // If the variable was not previously imported and no value
 // has been specified, the default is returned
 func E(e EnvVar) string {
-	if e.Key == "" {
-		panic("key shouldn't be empty")
-	}
-	if e.Secret && len(e.Default) > 0 {
-		panic("secrets shouldn't be embedded with defaults")
-	}
-
-	env.init()
-
-	if v, ok := env.imported[e.Key]; ok {
-		e.Value = v
-	} else {
-		e.Value = os.Getenv(e.Key)
-	}
-	env.env[e.Key] = e
-
-	return MustGetEnv(e.Key)
+	return env.E(e)
 }
 
 // MustGetEnv returns the value of the environment variable given with key.
@@ -63,7 +39,57 @@ func E(e EnvVar) string {
 // imported from existing environment - otherwise the function will panic.
 // For non-panicking version use GetEnv
 func MustGetEnv(key string) (value string) {
-	if v, ok := GetEnv(key); ok {
+	return env.MustGetEnv(key)
+}
+
+// GetEnv returns the value of the environment variable given with key.
+// The variable is assumed to have been registered either with E or
+// imported from existing environment
+func GetEnv(key string) (value string, exists bool) {
+	return env.GetEnv(key)
+}
+
+// Env returns the complete environment
+func Env() map[string]EnvVar {
+	return env.Env()
+}
+
+// NewEnviron creates a new configuration environment
+func NewEnviron(importer EnvImporterFunc) *Environ {
+	env = newEnviron(importer)
+	return env
+}
+
+// E defines a new environment variable specified with e.
+// Returns the current value of the variable with precedence
+// given to previously imported environment variables.
+// If the variable was not previously imported and no value
+// has been specified, the default is returned
+func (r *Environ) E(e EnvVar) string {
+	if e.Key == "" {
+		panic("key shouldn't be empty")
+	}
+	if e.Secret && len(e.Default) > 0 {
+		panic("secrets shouldn't be embedded with defaults")
+	}
+
+	r.importOnce()
+	if v, ok := r.imported[e.Key]; ok {
+		e.Value = v
+	} else {
+		e.Value = os.Getenv(e.Key)
+	}
+	r.env[e.Key] = e
+
+	return r.MustGetEnv(e.Key)
+}
+
+// MustGetEnv returns the value of the environment variable given with key.
+// The variable is assumed to have been registered either with E or
+// imported from existing environment - otherwise the function will panic.
+// For non-panicking version use GetEnv
+func (r *Environ) MustGetEnv(key string) (value string) {
+	if v, ok := r.GetEnv(key); ok {
 		return v
 	}
 	panic(fmt.Sprintf("Requested environment variable %q hasn't been registered", key))
@@ -72,10 +98,10 @@ func MustGetEnv(key string) (value string) {
 // GetEnv returns the value of the environment variable given with key.
 // The variable is assumed to have been registered either with E or
 // imported from existing environment
-func GetEnv(key string) (value string, exists bool) {
-	env.init()
+func (r *Environ) GetEnv(key string) (value string, exists bool) {
+	r.importOnce()
 	var v EnvVar
-	if v, exists = env.env[key]; !exists {
+	if v, exists = r.env[key]; !exists {
 		return "", false
 	}
 	if v.Value != "" {
@@ -85,17 +111,27 @@ func GetEnv(key string) (value string, exists bool) {
 }
 
 // Env returns the complete environment
-func Env() map[string]EnvVar {
-	m := make(map[string]EnvVar, len(env.env))
-	for key, value := range env.env {
+func (r *Environ) Env() map[string]EnvVar {
+	m := make(map[string]EnvVar, len(r.env))
+	for key, value := range r.env {
 		def := value.Default
 		if def == "" {
-			def = env.imported[key]
+			def = r.imported[key]
 		}
 		value.Default = def
 		m[key] = value
 	}
 	return m
+}
+
+// Environ represents the environment with configuration
+type Environ struct {
+	// env specifies the builder's configuration from environment
+	env map[string]EnvVar
+	// imported optionally specifies environment overrides
+	imported map[string]string
+	importer EnvImporterFunc
+	once     sync.Once
 }
 
 // ImportEnvFromMakefile invokes `make` to generate configuration for this mage script.
@@ -114,6 +150,9 @@ func ImportEnvFromMakefile() (env map[string]string) {
 	env, _ = ImportEnvFromReader(bytes.NewReader(out))
 	return env
 }
+
+// EnvImporterFunc defines a function type to import environment from external source
+type EnvImporterFunc func() map[string]string
 
 // ImportEnvFromReader consumes configuration for this mage script from the specified reader.
 // Expects the reader to produce a list of environment variables as key=value pairs with a single
@@ -143,24 +182,20 @@ func ImportEnvFromReader(r io.Reader) (env map[string]string, err error) {
 	return env, nil
 }
 
-var env = environ{
-	env:      make(map[string]EnvVar),
-	importer: ImportEnvFromMakefile,
+// env represents the default configuration environment
+var env = newEnviron(ImportEnvFromMakefile)
+
+func newEnviron(importer EnvImporterFunc) *Environ {
+	return &Environ{
+		importer: importer,
+		env:      make(map[string]EnvVar),
+	}
 }
 
-func (r *environ) init() {
+func (r *Environ) importOnce() {
 	r.once.Do(func() {
 		r.imported = r.importer()
 	})
-}
-
-type environ struct {
-	// env specifies the builder's configuration from environment
-	env map[string]EnvVar
-	// imported optionally specifies environment overrides
-	imported map[string]string
-	importer EnvImporterFunc
-	once     sync.Once
 }
 
 var debianFrontend = E(EnvVar{

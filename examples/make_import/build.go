@@ -31,27 +31,25 @@ var root = mustRoot(magnet.Config{
 	ModulePath:  "github.com/gravitational/magnet/examples/make_import",
 })
 
-func init() {
-	// This is the default.
-	// Shown here to demonstrate the option of using an external configuration source of ovverides
-	magnet.ImportEnvFrom(magnet.ImportEnvFromMakefile)
-}
-
 var Deinit = Shutdown
 
 var (
+	// This is the default.
+	// Shown here to demonstrate the option of using an external configuration source of overrides
+	env = magnet.NewEnviron(magnet.ImportEnvFromMakefile)
+
 	// vars imported from make
-	goVersion = magnet.E(magnet.EnvVar{
+	goVersion = env.E(magnet.EnvVar{
 		Key:   "GO_VERSION",
 		Short: "Set the Go version (Default from make)",
 	})
 
-	arch = magnet.E(magnet.EnvVar{
+	arch = env.E(magnet.EnvVar{
 		Key:   "ARCH",
 		Short: "Set the arch (Default from make)",
 	})
 
-	k8sVersion = magnet.E(magnet.EnvVar{
+	k8sVersion = env.E(magnet.EnvVar{
 		Key:   "K8S_VERSION",
 		Short: "Set the k8s version (Default from make)",
 	})

@@ -14,7 +14,6 @@ limitations under the License.
 package common
 
 import (
-	"io"
 	"os"
 	"sort"
 
@@ -29,14 +28,9 @@ type Help mg.Namespace
 
 // Envs outputs the current environment configuration
 func (Help) Envs() (err error) {
-	return WriteEnvs(magnet.Env(), os.Stdout)
-}
-
-// WriteEnvs outputs environment variables that can override build options to w
-func WriteEnvs(environ map[string]magnet.EnvVar, w io.Writer) error {
 	var result [][]string
 
-	for key, value := range environ {
+	for key, value := range magnet.Env() {
 		if value.Secret {
 			result = append(result, []string{key, "<redacted>", "", value.Short})
 		} else {
@@ -47,7 +41,7 @@ func WriteEnvs(environ map[string]magnet.EnvVar, w io.Writer) error {
 		return result[i][0] < result[j][0]
 	})
 
-	table := tablewriter.NewWriter(w)
+	table := tablewriter.NewWriter(os.Stdout)
 	table.SetHeader([]string{"Env", "Value", "Default", "Short Description"})
 	table.SetBorder(false)
 	table.SetAutoWrapText(false)
