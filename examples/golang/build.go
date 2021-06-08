@@ -21,6 +21,8 @@ import (
 	"os"
 
 	"github.com/gravitational/magnet"
+	//mage:import
+	_ "github.com/gravitational/magnet/common"
 	"github.com/gravitational/trace"
 
 	"github.com/magefile/mage/mg"
@@ -35,20 +37,19 @@ var root = mustRoot(magnet.Config{
 	LogDir:      "_build/logs",
 	CacheDir:    "_build",
 	ModulePath:  "github.com/gravitational/magnet/examples/golang",
-	// If VERSION is unspecified, the default will be generated based on a git tag
-	Version: os.Getenv("VERSION"),
+	Version:     version,
 })
 
 // Deinit schedules the clean up tasks to run when mage exits
 var Deinit = Shutdown
 
 var (
-	goVersion = root.E(magnet.EnvVar{
+	goVersion = magnet.E(magnet.EnvVar{
 		Key:     "GOLANG_VER",
 		Default: "1.13.12-stretch",
 		Short:   "Set the Go version to embed within the container",
 	})
-	golangciVersion = root.E(magnet.EnvVar{
+	golangciVersion = magnet.E(magnet.EnvVar{
 		Key:     "GOLANGCI_VER",
 		Default: "v1.40.1",
 		Short:   "Set the golangci-lint version to embed within the container",
@@ -56,11 +57,10 @@ var (
 	// version of the output / build container tag
 	// Can be overridden on command line with:
 	//
-	// # VERSION=1.0 go run mage.go buildContainer
-	version = root.E(magnet.EnvVar{
-		Key:     "VERSION",
-		Default: root.Version,
-		Short:   "Set the output version",
+	// $ VERSION=1.0 go run mage.go buildContainer
+	version = magnet.E(magnet.EnvVar{
+		Key:   "VERSION",
+		Short: "Set the output version",
 	})
 )
 
@@ -89,13 +89,12 @@ func BuildInContainer(ctx context.Context) (err error) {
 
 	err = t.GolangBuild().
 		SetOutputPath("_build/example.container").
-		SetBuildContainer(buildContainer()).
-		SetEnv("GO111MODULE", "on").
+		SetBuildContainerConfig(magnet.BuildContainer{
+			Name:   buildContainer(),
+			GOPath: "/gopath",
+		}).
 		Build(ctx, "github.com/gravitational/magnet/examples/golang")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return
+	return trace.Wrap(err)
 }
 
 // Test is an example mage target that runs the go compilers tests
@@ -104,9 +103,13 @@ func Test(ctx context.Context) (err error) {
 	t := root.Target("test")
 	defer func() { t.Complete(err) }()
 
+	mg.CtxDeps(ctx, BuildContainer)
+
 	err = t.GolangTest().
-		SetEnv("GO111MODULE", "on").
-		SetBuildContainer(buildContainer()).
+		SetBuildContainerConfig(magnet.BuildContainer{
+			Name:   buildContainer(),
+			GOPath: "/gopath",
+		}).
 		Test(ctx, "github.com/gravitational/magnet/examples/golang")
 	if err != nil {
 		return trace.Wrap(err)
@@ -136,7 +139,7 @@ func Shutdown() {
 }
 
 func buildContainer() string {
-	return fmt.Sprint("example-builder:", version)
+	return fmt.Sprint("example-builder:", root.Version)
 }
 
 func mustRoot(config magnet.Config) *magnet.Magnet {

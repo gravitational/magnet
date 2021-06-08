@@ -15,12 +15,22 @@ package common
 
 import (
 	"io"
+	"os"
 	"sort"
 
 	"github.com/gravitational/magnet"
 
+	"github.com/magefile/mage/mg"
 	"github.com/olekukonko/tablewriter"
 )
+
+// Help defines the utility namespace for help targets
+type Help mg.Namespace
+
+// Envs outputs the current environment configuration
+func (Help) Envs() (err error) {
+	return WriteEnvs(magnet.Env(), os.Stdout)
+}
 
 // WriteEnvs outputs environment variables that can override build options to w
 func WriteEnvs(environ map[string]magnet.EnvVar, w io.Writer) error {
@@ -33,7 +43,6 @@ func WriteEnvs(environ map[string]magnet.EnvVar, w io.Writer) error {
 			result = append(result, []string{key, value.Value, value.Default, value.Short})
 		}
 	}
-
 	sort.SliceStable(result, func(i, j int) bool {
 		return result[i][0] < result[j][0]
 	})

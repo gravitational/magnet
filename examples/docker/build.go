@@ -21,7 +21,10 @@ import (
 	"os"
 
 	"github.com/gravitational/magnet"
+	// mage:import
+	_ "github.com/gravitational/magnet/common"
 	"github.com/gravitational/trace"
+
 	"github.com/magefile/mage/mg"
 )
 
@@ -40,13 +43,13 @@ var root = mustRoot(magnet.Config{
 var Deinit = Shutdown
 
 var (
-	goVersion = root.E(magnet.EnvVar{
+	goVersion = magnet.E(magnet.EnvVar{
 		Key:     "GOLANG_VER",
 		Default: "1.13.12-stretch",
 		Short:   "Set the Go version to embed within the container",
 	})
 
-	golangciVersion = root.E(magnet.EnvVar{
+	golangciVersion = magnet.E(magnet.EnvVar{
 		Key:     "GOLANGCI_VER",
 		Default: "v1.27.0",
 		Short:   "Set the golangci-lint version to embed within the container",

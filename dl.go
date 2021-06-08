@@ -23,7 +23,7 @@ type downloadMetadata struct {
 	SHA2Sum string
 }
 
-// Download begins a download of a url but doesn't block.
+// DownloadFuture begins a download of a url but doesn't block.
 // Returns a future that when called will block until it can return the path to the file on disk or an error.
 func (m *MagnetTarget) DownloadFuture(ctx context.Context, url string) DownloadFutureFunc {
 	type result struct {

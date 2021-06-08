@@ -17,11 +17,11 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/gravitational/magnet"
-	"github.com/gravitational/magnet/common"
-	"github.com/magefile/mage/mg"
+
+	//mage:import
+	_ "github.com/gravitational/magnet/common"
 )
 
 var root = mustRoot(magnet.Config{
@@ -29,22 +29,29 @@ var root = mustRoot(magnet.Config{
 	LogDir:      "_build/logs",
 	CacheDir:    "_build",
 	ModulePath:  "github.com/gravitational/magnet/examples/make_import",
-	ImportEnv:   mustEnv(magnet.ImportEnvFromMakefile()),
 })
+
+func init() {
+	// This is the default.
+	// Shown here to demonstrate the option of using an external configuration source of ovverides
+	magnet.ImportEnvFrom(magnet.ImportEnvFromMakefile)
+}
+
+var Deinit = Shutdown
 
 var (
 	// vars imported from make
-	goVersion = root.E(magnet.EnvVar{
+	goVersion = magnet.E(magnet.EnvVar{
 		Key:   "GO_VERSION",
 		Short: "Set the Go version (Default from make)",
 	})
 
-	arch = root.E(magnet.EnvVar{
+	arch = magnet.E(magnet.EnvVar{
 		Key:   "ARCH",
 		Short: "Set the arch (Default from make)",
 	})
 
-	k8sVersion = root.E(magnet.EnvVar{
+	k8sVersion = magnet.E(magnet.EnvVar{
 		Key:   "K8S_VERSION",
 		Short: "Set the k8s version (Default from make)",
 	})
@@ -60,14 +67,8 @@ func Env() (err error) {
 	return
 }
 
-type Help mg.Namespace
-
-// Envs outputs the current environment configuration
-func (Help) Envs() (err error) {
-	m := root.Target("help:envs")
-	defer func() { m.Complete(err) }()
-
-	return common.WriteEnvs(root.Env(), os.Stdout)
+func Shutdown() {
+	root.Shutdown()
 }
 
 func mustEnv(env map[string]string, err error) map[string]string {

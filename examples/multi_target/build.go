@@ -18,12 +18,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/gravitational/magnet"
-	"github.com/gravitational/magnet/common"
+	// mage:import
+	_ "github.com/gravitational/magnet/common"
 	"github.com/gravitational/trace"
+
 	"github.com/magefile/mage/mg"
 )
 
@@ -32,7 +33,7 @@ import (
 //
 
 var root = mustRoot(magnet.Config{
-	Version:     os.Getenv("VERSION"),
+	Version:     version,
 	LogDir:      "_build/logs",
 	CacheDir:    "_build",
 	ModulePath:  "github.com/gravitational/magnet/examples/multi_target",
@@ -47,7 +48,7 @@ var Deinit = Shutdown
 //
 
 var (
-	version = root.E(magnet.EnvVar{
+	version = magnet.E(magnet.EnvVar{
 		Key:     "VERSION",
 		Default: magnet.DefaultVersion(),
 		Short:   "Set the version that will be built",
@@ -165,16 +166,6 @@ func Dep2(ctx context.Context) (err error) {
 	_, err = t.Download(ctx, "http://speedtest-ny.turnkeyinternet.net/100mb.bin")
 
 	return
-}
-
-type Help mg.Namespace
-
-// Envs outputs the current environment configuration
-func (Help) Envs() (err error) {
-	m := root.Target("help:envs")
-	defer func() { m.Complete(err) }()
-
-	return common.WriteEnvs(root.Env(), os.Stdout)
 }
 
 // Shutdown executes magnet's clean up tasks (internal)

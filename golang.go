@@ -3,7 +3,6 @@ package magnet
 import (
 	"context"
 	"fmt"
-	"go/build"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,6 +65,9 @@ type GolangConfigCommon struct {
 
 	// Tags is a list of build tags to consider as satisified during the build
 	Tags []string
+
+	// Volumes lists additional docker bind mounts for container workflows
+	Volumes []DockerBindMount
 }
 
 func (m *GolangConfigCommon) genFlags() []string {
@@ -136,11 +138,20 @@ type GolangConfigBuild struct {
 type BuildContainer struct {
 	// Name identifies the container image
 	Name string
+	// GOPath optionally overrides the gopath inside the container.
+	//
+	// If set, the module path inside the container (ContainerPath)
+	// will be automatically deduced as `GOPath/src/ModulePath`.
+	// The value of the attribute will be written as `GOPATH` envar
+	// inside the container.
+	// Also sets `GO111MODULE=auto` envar if unspecified.
+	GOPath string
 	// HostPath optionally specifies the repository path on host.
-	// Defaults to working directory of the process if unspecified
+	// Defaults to working directory of the process if unspecified.
 	HostPath string
-	// ContainerPath optionally specifies the repository path inside the container.
-	// Will be computed based on host's GOPATH configuration if unspecified
+	// ContainerPath optionally specifies the module path inside the container.
+	// If unspecified and GOPath is given, will be computed as described above.
+	// If unspecified and GOPath is empty, defaults to `/host`.
 	ContainerPath string
 }
 
@@ -156,13 +167,19 @@ func (m *GolangConfigBuild) cacheDir() (path string, err error) {
 func (m *MagnetTarget) GolangBuild() *GolangConfigBuild {
 	return &GolangConfigBuild{
 		TrimPath: true,
-		target:   m,
+		GolangConfigCommon: GolangConfigCommon{
+			Env: make(map[string]string),
+		},
+		target: m,
 	}
 }
 
 // GolangTest returns a builder that can be used to run golang tests against a set of sources.
 func (m *MagnetTarget) GolangTest() *GolangConfigTest {
 	return &GolangConfigTest{
+		GolangConfigCommon: GolangConfigCommon{
+			Env: make(map[string]string),
+		},
 		target: m,
 	}
 }
@@ -170,6 +187,9 @@ func (m *MagnetTarget) GolangTest() *GolangConfigTest {
 // GolangCover returns a builder that can be used to work with the coverage tool
 func (m *MagnetTarget) GolangCover() *GolangConfigCover {
 	return &GolangConfigCover{
+		GolangConfigCommon: GolangConfigCommon{
+			Env: make(map[string]string),
+		},
 		target: m,
 	}
 }
@@ -203,6 +223,12 @@ func (m *GolangConfigBuild) AddLDFlag(flag string) *GolangConfigBuild {
 // AddLDFlags adds multiple ldflags to pass to the compiler.
 func (m *GolangConfigBuild) AddLDFlags(flags []string) *GolangConfigBuild {
 	m.LDFlags = append(m.LDFlags, flags...)
+	return m
+}
+
+// AddVolumes adds a set of docker bind mounts to the container configuration
+func (m *GolangConfigBuild) AddVolumes(volumes ...DockerBindMount) *GolangConfigBuild {
+	m.Volumes = append(m.Volumes, volumes...)
 	return m
 }
 
@@ -273,10 +299,6 @@ func (m *GolangConfigBuild) SetTrimpath(b bool) *GolangConfigBuild {
 
 // SetEnv sets an environment variable on the build tools.
 func (m *GolangConfigBuild) SetEnv(key, value string) *GolangConfigBuild {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
-
 	m.Env[key] = value
 
 	return m
@@ -284,10 +306,6 @@ func (m *GolangConfigBuild) SetEnv(key, value string) *GolangConfigBuild {
 
 // SetEnvs allows setting multiple environment variables on the build tools.
 func (m *GolangConfigBuild) SetEnvs(envs map[string]string) *GolangConfigBuild {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
-
 	for key, value := range envs {
 		m.Env[key] = value
 	}
@@ -297,18 +315,12 @@ func (m *GolangConfigBuild) SetEnvs(envs map[string]string) *GolangConfigBuild {
 
 // SetGOOS allows overriding the GOOS env to a specific value.
 func (m *GolangConfigBuild) SetGOOS(value string) *GolangConfigBuild {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
 	m.Env["GOOS"] = value
 	return m
 }
 
 // SetGOARCH allows overriding the default architecture for the resulting binary.
 func (m *GolangConfigBuild) SetGOARCH(value string) *GolangConfigBuild {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
 	m.Env["GOARCH"] = value
 	return m
 }
@@ -324,6 +336,7 @@ func (m *GolangConfigBuild) SetBuildContainer(value string) *GolangConfigBuild {
 // directly, a docker container will be used to map the sources and run the build within the consistent image.
 func (m *GolangConfigBuild) SetBuildContainerConfig(config BuildContainer) *GolangConfigBuild {
 	m.BuildContainer = config.Name
+	m.paths.gopath = config.GOPath
 	m.paths.hostPath = config.HostPath
 	m.paths.containerPath = config.ContainerPath
 	return m
@@ -339,7 +352,7 @@ func (m *GolangConfigBuild) Build(ctx context.Context, packages ...string) error
 }
 
 func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string) (err error) {
-	if err := m.paths.checkAndSetDefaults(); err != nil {
+	if err := m.paths.compute(m.target.root.ModulePath, m.Env); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -365,10 +378,8 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 			Source:      cacheDir,
 			Destination: "/cache",
 			Consistency: "delegated",
-		})
-	if m.paths.gopath != "" {
-		cmd.SetEnv("GOPATH", m.paths.gopath)
-	}
+		}).
+		AddVolume(m.Volumes...)
 
 	gocmd := m.buildCmd(packages...)
 
@@ -433,7 +444,7 @@ func (m *GolangConfigTest) Test(ctx context.Context, packages ...string) error {
 }
 
 func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) error {
-	if err := m.paths.checkAndSetDefaults(); err != nil {
+	if err := m.paths.compute(m.target.root.ModulePath, m.Env); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -459,10 +470,8 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 			Source:      cacheDir,
 			Destination: "/cache",
 			Consistency: "delegated",
-		})
-	if m.paths.gopath != "" {
-		cmd.SetEnv("GOPATH", m.paths.gopath)
-	}
+		}).
+		AddVolume(m.Volumes...)
 
 	gocmd := m.buildCmd(packages...)
 
@@ -545,6 +554,12 @@ func (m *GolangConfigTest) AddLDFlags(flags []string) *GolangConfigTest {
 	return m
 }
 
+// AddVolumes adds a set of docker bind mounts to the container configuration
+func (m *GolangConfigTest) AddVolumes(volumes ...DockerBindMount) *GolangConfigTest {
+	m.Volumes = append(m.Volumes, volumes...)
+	return m
+}
+
 // AddGCFlag adds a flag to the go tool compile program.
 func (m *GolangConfigTest) AddGCFlag(flag string) *GolangConfigTest {
 	m.GCFlags = append(m.GCFlags, flag)
@@ -595,10 +610,6 @@ func (m *GolangConfigTest) SetRebuild(b bool) *GolangConfigTest {
 
 // SetEnv sets an environment variable on the build tools.
 func (m *GolangConfigTest) SetEnv(key, value string) *GolangConfigTest {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
-
 	m.Env[key] = value
 
 	return m
@@ -606,10 +617,6 @@ func (m *GolangConfigTest) SetEnv(key, value string) *GolangConfigTest {
 
 // SetEnvs allows setting multiple environment variables on the build tools.
 func (m *GolangConfigTest) SetEnvs(envs map[string]string) *GolangConfigTest {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
-
 	for key, value := range envs {
 		m.Env[key] = value
 	}
@@ -619,18 +626,12 @@ func (m *GolangConfigTest) SetEnvs(envs map[string]string) *GolangConfigTest {
 
 // SetGOOS allows overriding the GOOS env to a specific value.
 func (m *GolangConfigTest) SetGOOS(value string) *GolangConfigTest {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
 	m.Env["GOOS"] = value
 	return m
 }
 
 // SetGOARCH allows overriding the default architecture for the resulting binary.
 func (m *GolangConfigTest) SetGOARCH(value string) *GolangConfigTest {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
 	m.Env["GOARCH"] = value
 	return m
 }
@@ -646,6 +647,7 @@ func (m *GolangConfigTest) SetBuildContainer(value string) *GolangConfigTest {
 // directly, a docker container will be used to map the sources and run the build within the consistent image.
 func (m *GolangConfigTest) SetBuildContainerConfig(config BuildContainer) *GolangConfigTest {
 	m.BuildContainer = config.Name
+	m.paths.gopath = config.GOPath
 	m.paths.hostPath = config.HostPath
 	m.paths.containerPath = config.ContainerPath
 	return m
@@ -678,12 +680,13 @@ type GolangConfigCover struct {
 // directly, a docker container will be used to map the sources and run the tool within the consistent image.
 func (m *GolangConfigCover) SetBuildContainerConfig(config BuildContainer) *GolangConfigCover {
 	m.BuildContainer = config.Name
+	m.paths.gopath = config.GOPath
 	m.paths.hostPath = config.HostPath
 	m.paths.containerPath = config.ContainerPath
 	return m
 }
 
-// SetCoverProfile sets the path to the cover profile previously generated
+// SetProfile sets the path to the cover profile previously generated
 // with 'go test'
 func (m *GolangConfigCover) SetProfile(path string) *GolangConfigCover {
 	m.profilePath = path
@@ -706,18 +709,12 @@ func (m *GolangConfigCover) SetMode(mode string) *GolangConfigCover {
 
 // SetEnv sets an environment variable on the tool.
 func (m *GolangConfigCover) SetEnv(key, value string) *GolangConfigCover {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
 	m.Env[key] = value
 	return m
 }
 
 // SetEnvs allows setting multiple environment variables on the tool.
 func (m *GolangConfigCover) SetEnvs(envs map[string]string) *GolangConfigCover {
-	if m.Env == nil {
-		m.Env = make(map[string]string)
-	}
 	for key, value := range envs {
 		m.Env[key] = value
 	}
@@ -741,7 +738,7 @@ func (m *GolangConfigCover) Run(ctx context.Context) error {
 
 // docker runs the coverage analysis inside a docker container
 func (m *GolangConfigCover) docker(ctx context.Context) error {
-	if err := m.paths.checkAndSetDefaults(); err != nil {
+	if err := m.paths.compute(m.target.root.ModulePath, m.Env); err != nil {
 		return trace.Wrap(err)
 	}
 	cacheDir, err := m.cacheDir()
@@ -754,7 +751,6 @@ func (m *GolangConfigCover) docker(ctx context.Context) error {
 		SetGID(fmt.Sprint(os.Getgid())).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
-		SetEnv("GOPATH", m.paths.gopath).
 		SetEnvs(m.Env).
 		SetWorkDir(m.paths.containerPath).
 		AddVolume(DockerBindMount{
@@ -766,7 +762,8 @@ func (m *GolangConfigCover) docker(ctx context.Context) error {
 			Source:      cacheDir,
 			Destination: "/cache",
 			Consistency: "delegated",
-		})
+		}).
+		AddVolume(m.Volumes...)
 	gocmd := m.toolCmd()
 	return trace.Wrap(cmd.Run(ctx, m.BuildContainer, gocmd[0], gocmd[1:]...))
 }
@@ -799,7 +796,7 @@ func (m *GolangConfigCover) cacheDir() (path string, err error) {
 	return path, nil
 }
 
-func (r *containerPathMapping) checkAndSetDefaults() (err error) {
+func (r *containerPathMapping) compute(modulePath string, env map[string]string) (err error) {
 	if r.hostPath == "" {
 		r.hostPath, err = os.Getwd()
 		if err != nil {
@@ -809,9 +806,15 @@ func (r *containerPathMapping) checkAndSetDefaults() (err error) {
 	// Different build containers have an inconsistent directory layout.
 	// So use a distinct directory for sources
 	if r.containerPath == "" {
-		r.containerPath = dockerSrcPathFromGopath(r.hostPath, "/host", build.Default.SrcDirs())
-		if r.containerPath != "/host" {
-			r.gopath = "/host"
+		if r.gopath != "" {
+			r.containerPath = filepath.Join(r.gopath, "src", modulePath)
+			env["GOPATH"] = r.gopath
+			if _, ok := env["GO111MODULE"]; !ok {
+				env["GO111MODULE"] = "auto"
+			}
+		} else {
+			delete(env, "GOPATH")
+			r.containerPath = "/host"
 		}
 	}
 	return nil
@@ -827,18 +830,6 @@ type containerPathMapping struct {
 	// Will be computed automatically based on host's GOPATH configuration if unspecified
 	containerPath string
 
-	// gopath optionally specifies the container's GOPATH in GOPATH mode.
-	// GOPATH can be overridden with GO111MODULE=on in Go 1.11+
+	// gopath optionally overrides the container's GOPATH in GOPATH mode.
 	gopath string
-}
-
-// dockerSrcPathFromGopath builds a path for Go repository at root
-// using host's GOPATH configuration.
-func dockerSrcPathFromGopath(root, containerRootPath string, srcDirs []string) string {
-	for _, srcDir := range srcDirs {
-		if strings.HasPrefix(root, srcDir) {
-			return filepath.Join(containerRootPath, strings.TrimPrefix(root, srcDir))
-		}
-	}
-	return containerRootPath
 }
