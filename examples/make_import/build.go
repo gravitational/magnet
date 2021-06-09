@@ -20,27 +20,36 @@ import (
 
 	"github.com/gravitational/magnet"
 
-	// mage:import
+	//mage:import
 	_ "github.com/gravitational/magnet/common"
 )
 
-var root = magnet.Root(magnet.Config{
+var root = mustRoot(magnet.Config{
 	PrintConfig: true,
+	LogDir:      "_build/logs",
+	CacheDir:    "_build",
+	ModulePath:  "github.com/gravitational/magnet/examples/make_import",
 })
 
+var Deinit = Shutdown
+
 var (
+	// This is the default.
+	// Shown here to demonstrate the option of using an external configuration source of overrides
+	env = magnet.NewEnviron(magnet.ImportEnvFromMakefile)
+
 	// vars imported from make
-	goVersion = magnet.E(magnet.EnvVar{
+	goVersion = env.E(magnet.EnvVar{
 		Key:   "GO_VERSION",
-		Short: "Set the golang version (Default from make)",
+		Short: "Set the Go version (Default from make)",
 	})
 
-	arch = magnet.E(magnet.EnvVar{
+	arch = env.E(magnet.EnvVar{
 		Key:   "ARCH",
 		Short: "Set the arch (Default from make)",
 	})
 
-	k8sVersion = magnet.E(magnet.EnvVar{
+	k8sVersion = env.E(magnet.EnvVar{
 		Key:   "K8S_VERSION",
 		Short: "Set the k8s version (Default from make)",
 	})
@@ -54,4 +63,23 @@ func Env() (err error) {
 	fmt.Println("k8sVersion: ", k8sVersion)
 
 	return
+}
+
+func Shutdown() {
+	root.Shutdown()
+}
+
+func mustEnv(env map[string]string, err error) map[string]string {
+	if err != nil {
+		panic(err.Error())
+	}
+	return env
+}
+
+func mustRoot(config magnet.Config) *magnet.Magnet {
+	root, err := magnet.Root(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	return root
 }

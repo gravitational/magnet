@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/gravitational/magnet/pkg/progressui"
@@ -31,7 +30,7 @@ type SolveStatusLogger struct {
 }
 
 // newSolveStatusLogger creates a routine that copies and logs status messages to log files on disk.
-func newSolveStatusLogger(baseDir string) *SolveStatusLogger {
+func newSolveStatusLogger(baseDir string) (*SolveStatusLogger, error) {
 	const statusChanSize = 128
 
 	s := &SolveStatusLogger{
@@ -47,19 +46,25 @@ func newSolveStatusLogger(baseDir string) *SolveStatusLogger {
 
 	err := os.MkdirAll(s.dirReal(), 0755)
 	if err != nil {
-		panic(trace.DebugReport(trace.ConvertSystemError(err)))
+		return nil, trace.Wrap(trace.ConvertSystemError(err))
 	}
 
 	_ = os.Remove(s.dirLink())
 	err = os.Symlink(s.time.Format("20060102150405"), s.dirLink())
 	if err != nil {
-		panic(trace.DebugReport(trace.ConvertSystemError(err)))
+		return nil, trace.Wrap(trace.ConvertSystemError(err))
 	}
 
-	go s.tee()
-	go s.writeLogs()
+	return s, nil
+}
 
-	return s
+type redactor interface {
+	redact(s []byte) []byte
+}
+
+func (s *SolveStatusLogger) start(redactor redactor) {
+	go s.tee(redactor)
+	go s.writeLogs()
 }
 
 func (s *SolveStatusLogger) dirReal() string {
@@ -70,7 +75,7 @@ func (s *SolveStatusLogger) dirLink() string {
 	return filepath.Join(s.baseDir, "latest")
 }
 
-func (s *SolveStatusLogger) tee() {
+func (s *SolveStatusLogger) tee(redactor redactor) {
 	for {
 		status, ok := <-s.source
 		if !ok {
@@ -83,11 +88,7 @@ func (s *SolveStatusLogger) tee() {
 		// Do internal redacting of secrets from any log output, to try and reduce the risk of accidental
 		// logging of secrets
 		for i := range status.Logs {
-			for _, value := range EnvVars {
-				if value.Secret && len(value.Value) > 0 {
-					status.Logs[i].Data = []byte(strings.ReplaceAll(string(status.Logs[i].Data), value.Value, "<redacted>"))
-				}
-			}
+			status.Logs[i].Data = redactor.redact(status.Logs[i].Data)
 		}
 
 		select {

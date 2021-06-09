@@ -16,15 +16,15 @@ import (
 )
 
 type ExecConfig struct {
-	magnet *Magnet
+	target *MagnetTarget
 	env    map[string]string
 	wd     string
 }
 
 // Exec is used to build and run a command on the system.
-func (m *Magnet) Exec() *ExecConfig {
+func (m *MagnetTarget) Exec() *ExecConfig {
 	return &ExecConfig{
-		magnet: m,
+		target: m,
 	}
 }
 
@@ -76,12 +76,12 @@ func (e *ExecConfig) Run(ctx context.Context, cmd string, args ...string) (bool,
 		args[i] = os.Expand(args[i], expand)
 	}
 
-	stdout, stderr := outStreams(e.magnet.Vertex.Digest, e.magnet.root().status)
+	stdout, stderr := outStreams(e.target.vertex.Digest, e.target.root.status)
 
 	if len(e.env) > 0 {
-		e.magnet.Println("Env: ", e.env, " Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
+		e.target.Println("Env: ", e.env, " Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
 	} else {
-		e.magnet.Println("Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
+		e.target.Println("Exec: ", fmt.Sprint(cmd, " ", strings.Join(args, " ")))
 	}
 
 	ran, err := run(ctx, e.env, stdout, stderr, e.wd, cmd, args...)
@@ -89,7 +89,7 @@ func (e *ExecConfig) Run(ctx context.Context, cmd string, args ...string) (bool,
 	return ran, trace.Wrap(err)
 }
 
-// Outout runs the provided command, returning the output
+// Output runs the provided command, returning the output
 // Note: output / trace won't be present in magnet logs
 func Output(ctx context.Context, cmd string, args ...string) (string, error) {
 	buf := &bytes.Buffer{}

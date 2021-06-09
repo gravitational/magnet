@@ -8,6 +8,6 @@ K8S_VERSION?=v1.6.6
 
 .PHONY: magnet-vars
 magnet-vars:
-	@echo ARCH=${ARCH}
-	@echo GO_VERSION=${GO_VERSION}
-	@echo K8S_VERSION=${K8S_VERSION}
+	@echo MAGNET_ARCH=${ARCH}
+	@echo MAGNET_GO_VERSION=${GO_VERSION}
+	@echo MAGNET_K8S_VERSION=${K8S_VERSION}

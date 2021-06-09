@@ -20,14 +20,21 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
-	
-	"github.com/gravitational/magnet"
-	
+
 	{{range .Imports}}{{.UniqueName}} "{{.Path}}"
 	{{end}}
 )
 
 func main() {
+	if err := run(); err != nil {
+		if exitCodeErr, ok := err.(interface{code() int}); ok {
+			os.Exit(exitCodeErr.code())
+		}
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// Use local types and functions in order to avoid name conflicts with additional magefiles.
 	type arguments struct {
 		Verbose       bool          // print out log statements
@@ -41,7 +48,7 @@ func main() {
 		val := os.Getenv(env)
 		if val == "" {
 			return false
-		}		
+		}
 		b, err := strconv.ParseBool(val)
 		if err != nil {
 			log.Printf("warning: environment variable %s is not a valid bool value: %v", env, val)
@@ -54,7 +61,7 @@ func main() {
 		val := os.Getenv(env)
 		if val == "" {
 			return 0
-		}		
+		}
 		d, err := time.ParseDuration(val)
 		if err != nil {
 			log.Printf("warning: environment variable %s is not a valid duration value: %v", env, val)
@@ -88,14 +95,141 @@ Options:
 	}
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		// flag will have printed out an error already.
-		return
+		return err
 	}
 	args.Args = fs.Args()
 	if args.Help && len(args.Args) == 0 {
 		fs.Usage()
-		return
+		return nil
 	}
-	  
+
+	// color is ANSI color type
+	type color int
+
+	// If you add/change/remove any items in this constant,
+	// you will need to run "stringer -type=color" in this directory again.
+	// NOTE: Please keep the list in an alphabetical order.
+	const (
+		black color = iota
+		red
+		green
+		yellow
+		blue
+		magenta
+		cyan
+		white
+		brightblack
+		brightred
+		brightgreen
+		brightyellow
+		brightblue
+		brightmagenta
+		brightcyan
+		brightwhite
+	)
+
+	// AnsiColor are ANSI color codes for supported terminal colors.
+	var ansiColor = map[color]string{
+		black:         "\u001b[30m",
+		red:           "\u001b[31m",
+		green:         "\u001b[32m",
+		yellow:        "\u001b[33m",
+		blue:          "\u001b[34m",
+		magenta:       "\u001b[35m",
+		cyan:          "\u001b[36m",
+		white:         "\u001b[37m",
+		brightblack:   "\u001b[30;1m",
+		brightred:     "\u001b[31;1m",
+		brightgreen:   "\u001b[32;1m",
+		brightyellow:  "\u001b[33;1m",
+		brightblue:    "\u001b[34;1m",
+		brightmagenta: "\u001b[35;1m",
+		brightcyan:    "\u001b[36;1m",
+		brightwhite:   "\u001b[37;1m",
+	}
+
+	const _color_name = "blackredgreenyellowbluemagentacyanwhitebrightblackbrightredbrightgreenbrightyellowbrightbluebrightmagentabrightcyanbrightwhite"
+
+	var _color_index = [...]uint8{0, 5, 8, 13, 19, 23, 30, 34, 39, 50, 59, 70, 82, 92, 105, 115, 126}
+
+	colorToLowerString := func (i color) string {
+		if i < 0 || i >= color(len(_color_index)-1) {
+			return "color(" + strconv.FormatInt(int64(i), 10) + ")"
+		}
+		return _color_name[_color_index[i]:_color_index[i+1]]
+	}
+
+	// ansiColorReset is an ANSI color code to reset the terminal color.
+	const ansiColorReset = "\033[0m"
+
+	// defaultTargetAnsiColor is a default ANSI color for colorizing targets.
+	// It is set to Cyan as an arbitrary color, because it has a neutral meaning
+	var defaultTargetAnsiColor = ansiColor[cyan]
+
+	getAnsiColor := func(color string) (string, bool) {
+		colorLower := strings.ToLower(color)
+		for k, v := range ansiColor {
+			colorConstLower := colorToLowerString(k)
+			if colorConstLower == colorLower {
+				return v, true
+			}
+		}
+		return "", false
+	}
+
+	// Terminals which  don't support color:
+	// 	TERM=vt100
+	// 	TERM=cygwin
+	// 	TERM=xterm-mono
+	var noColorTerms = map[string]bool{
+		"vt100":      false,
+		"cygwin":     false,
+		"xterm-mono": false,
+	}
+
+	// terminalSupportsColor checks if the current console supports color output
+	//
+	// Supported:
+	// 	linux, mac, or windows's ConEmu, Cmder, putty, git-bash.exe, pwsh.exe
+	// Not supported:
+	// 	windows cmd.exe, powerShell.exe
+	terminalSupportsColor := func() bool {
+		envTerm := os.Getenv("TERM")
+		if _, ok := noColorTerms[envTerm]; ok {
+			return false
+		}
+		return true
+	}
+
+	// enableColor reports whether the user has requested to enable a color output.
+	enableColor := func() bool {
+		b, _ := strconv.ParseBool(os.Getenv("MAGEFILE_ENABLE_COLOR"))
+		return b
+	}
+
+	// targetColor returns the ANSI color which should be used to colorize targets.
+	targetColor := func() string {
+		s, exists := os.LookupEnv("MAGEFILE_TARGET_COLOR")
+		if exists == true {
+			if c, ok := getAnsiColor(s); ok == true {
+				return c
+			}
+		}
+		return defaultTargetAnsiColor
+	}
+
+	// store the color terminal variables, so that the detection isn't repeated for each target
+	var enableColorValue = enableColor() && terminalSupportsColor()
+	var targetColorValue = targetColor()
+
+	printName := func(str string) string {
+		if enableColorValue {
+			return fmt.Sprintf("%s%s%s", targetColorValue, str, ansiColorReset)
+		} else {
+			return str
+		}
+	}
+
 	list := func() error {
 		{{with .Description}}fmt.Println(` + "`{{.}}\n`" + `)
 		{{- end}}
@@ -120,7 +254,7 @@ Options:
 		fmt.Println("Targets:")
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 4, ' ', 0)
 		for _, name := range keys {
-			fmt.Fprintf(w, "  %v\t%v\n", name, targets[name])
+			fmt.Fprintf(w, "  %v\t%v\n", printName(name), targets[name])
 		}
 		err := w.Flush()
 		{{- if .DefaultFunc.Name}}
@@ -175,18 +309,18 @@ Options:
 	// variable error.
 	_ = runTarget
 
-	handleError := func(logger *log.Logger, err interface{}) {
+	handleError := func(logger *log.Logger, err interface{}) error {
 		if err != nil {
-			magnet.Shutdown()
 			logger.Printf("Error: %+v\n", err)
 			type code interface {
 				ExitStatus() int
 			}
 			if c, ok := err.(code); ok {
-				os.Exit(c.ExitStatus())
+				return newExitCodeError(c.ExitStatus())
 			}
-			os.Exit(1)
+			return newExitCodeError(1)
 		}
+		return nil
 	}
 	_ = handleError
 
@@ -205,52 +339,24 @@ Options:
 	if args.List {
 		if err := list(); err != nil {
 			log.Println(err)
-			os.Exit(1)
+			return newExitCodeError(1)
 		}
-		return
-	}
-
-	targets := map[string]bool {
-		{{range $alias, $funci := .Aliases}}"{{lower $alias}}": true,
-		{{end}}
-		{{range .Funcs}}"{{lower .TargetName}}": true,
-		{{end}}
-		{{range .Imports}}
-			{{$imp := .}}
-			{{range $alias, $funci := .Info.Aliases}}"{{if ne $imp.Alias "."}}{{lower $imp.Alias}}:{{end}}{{lower $alias}}": true,
-			{{end}}
-			{{range .Info.Funcs}}"{{lower .TargetName}}": true,
-			{{end}}
-		{{end}}
-	}
-
-	var unknown []string
-	for _, arg := range args.Args {
-		if !targets[strings.ToLower(arg)] {
-			unknown = append(unknown, arg)
-		}
-	}
-	if len(unknown) == 1 {
-		logger.Println("Unknown target specified:", unknown[0])
-		os.Exit(2)
-	}
-	if len(unknown) > 1 {
-		logger.Println("Unknown targets specified:", strings.Join(unknown, ", "))
-		os.Exit(2)
+		return nil
 	}
 
 	if args.Help {
 		if len(args.Args) < 1 {
 			logger.Println("no target specified")
-			os.Exit(1)
+			return newExitCodeError(2)
 		}
 		switch strings.ToLower(args.Args[0]) {
-			{{range .Funcs}}case "{{lower .TargetName}}":
-				fmt.Print("{{$.BinaryName}} {{lower .TargetName}}:\n\n")
+			{{range .Funcs -}}
+			case "{{lower .TargetName}}":
 				{{if ne .Comment "" -}}
 				fmt.Println({{printf "%q" .Comment}})
 				fmt.Println()
 				{{end}}
+				fmt.Print("Usage:\n\n\t{{$.BinaryName}} {{lower .TargetName}}{{range .Args}} <{{.Name}}>{{end}}\n\n")
 				var aliases []string
 				{{- $name := .Name -}}
 				{{- $recv := .Receiver -}}
@@ -260,75 +366,130 @@ Options:
 				if len(aliases) > 0 {
 					fmt.Printf("Aliases: %s\n\n", strings.Join(aliases, ", "))
 				}
-				return
-			{{end}}
+				return nil
+			{{end -}}
+			{{range .Imports -}}
+				{{range .Info.Funcs -}}
+			case "{{lower .TargetName}}":
+				{{if ne .Comment "" -}}
+				fmt.Println({{printf "%q" .Comment}})
+				fmt.Println()
+				{{end}}
+				fmt.Print("Usage:\n\n\t{{$.BinaryName}} {{lower .TargetName}}{{range .Args}} <{{.Name}}>{{end}}\n\n")
+				var aliases []string
+				{{- $name := .Name -}}
+				{{- $recv := .Receiver -}}
+				{{range $alias, $func := $.Aliases}}
+				{{if and (eq $name $func.Name) (eq $recv $func.Receiver)}}aliases = append(aliases, "{{$alias}}"){{end -}}
+				{{- end}}
+				if len(aliases) > 0 {
+					fmt.Printf("Aliases: %s\n\n", strings.Join(aliases, ", "))
+				}
+				return nil
+				{{end -}}
+			{{end -}}
 			default:
 				logger.Printf("Unknown target: %q\n", args.Args[0])
-				os.Exit(1)
+				return newExitCodeError(2)
 		}
 	}
 
-	defer magnet.Shutdown()
+	{{- if .DeinitFunc}}
+	defer func() {
+	{{.DeinitFunc.ExecCode}}
+		_ = handleError(logger, ret)
+	}()
+	{{- end}}
 	if len(args.Args) < 1 {
 	{{- if .DefaultFunc.Name}}
 		ignoreDefault, _ := strconv.ParseBool(os.Getenv("MAGEFILE_IGNOREDEFAULT"))
 		if ignoreDefault {
 			if err := list(); err != nil {
-				magnet.Shutdown()
 				logger.Println("Error:", err)
-				os.Exit(1)
+				return newExitCodeError(1)
 			}
-			return
+			return nil
 		}
 		{{.DefaultFunc.ExecCode}}
-		handleError(logger, err)
-		return
+		return handleError(logger, ret)
 	{{- else}}
 		if err := list(); err != nil {
-			magnet.Shutdown()
 			logger.Println("Error:", err)
-			os.Exit(1)
+			return newExitCodeError(1)
 		}
-		return
+		return nil
 	{{- end}}
 	}
-	for _, target := range args.Args {
+	for x := 0; x < len(args.Args); {
+		target := args.Args[x]
+		x++
+
+		// resolve aliases
 		switch strings.ToLower(target) {
 		{{range $alias, $func := .Aliases}}
 			case "{{lower $alias}}":
 				target = "{{$func.TargetName}}"
 		{{- end}}
 		}
+
 		switch strings.ToLower(target) {
 		{{range .Funcs }}
 			case "{{lower .TargetName}}":
+				expected := x + {{len .Args}}
+				if expected > len(args.Args) {
+					// note that expected and args at this point include the arg for the target itself
+					// so we subtract 1 here to show the number of args without the target.
+					logger.Printf("not enough arguments for target \"{{.TargetName}}\", expected %v, got %v\n", expected-1, len(args.Args)-1)
+					return newExitCodeError(2)
+				}
 				if args.Verbose {
 					logger.Println("Running target:", "{{.TargetName}}")
 				}
 				{{.ExecCode}}
-				handleError(logger, err)
+				if err := handleError(logger, ret); err != nil {
+					return err
+				}
 		{{- end}}
 		{{range .Imports}}
 		{{$imp := .}}
 			{{range .Info.Funcs }}
 				case "{{lower .TargetName}}":
+					expected := x + {{len .Args}}
+					if expected > len(args.Args) {
+						// note that expected and args at this point include the arg for the target itself
+						// so we subtract 1 here to show the number of args without the target.
+						logger.Printf("not enough arguments for target \"{{.TargetName}}\", expected %v, got %v\n", expected-1, len(args.Args)-1)
+						return newExitCodeError(2)
+					}
 					if args.Verbose {
 						logger.Println("Running target:", "{{.TargetName}}")
 					}
 					{{.ExecCode}}
-					handleError(logger, err)
+					if err := handleError(logger, ret); err != nil {
+						return err
+					}
 			{{- end}}
 		{{- end}}
 		default:
-			magnet.Shutdown()
-			// should be impossible since we check this above.
-			logger.Printf("Unknown target: %q\n", args.Args[0])
-			os.Exit(1)
+			logger.Printf("Unknown target specified: %q\n", target)
+			return newExitCodeError(2)
 		}
 	}
+	return nil
 }
 
+func newExitCodeError(code int) exitCodeError {
+	return exitCodeError(code)
+}
 
+func (r exitCodeError) Error() string {
+	return fmt.Sprint("process exited with ", r)
+}
 
+type exitCodeError int
+
+func (r exitCodeError) code() int {
+	return int(r)
+}
 
 `

@@ -8,9 +8,9 @@
 
 ```
 ❯ go run mage.go MultipleTargets
-Logs:    build/logs/latest (build/logs/20200721110651)
-Version:  v0.1.0-17-g29f9b23-dirty
-Build:    build/v0.1.0-17-g29f9b23-dirty
+Logs:    _build/logs/latest (_build/logs/20200721110651)
+Version: v0.1.0-17-g29f9b23-dirty
+Cache:   _build/magnet/github.com/gravitational/magnet/examples/multi_target
 [+] Building 8.5s (5/5) FINISHED
  => CACHED target1                                                                                                            8.5s
  => - target2                                                                                                                 8.5s
@@ -26,7 +26,7 @@ Build:    build/v0.1.0-17-g29f9b23-dirty
 ------
 
 
-❯ ls -l build/logs/latest/
+❯ ls -l _build/logs/latest/
 total 20
 -rw-r--r-- 1 knisbet knisbet 355 Jul 21 11:07 target1
 -rw-r--r-- 1 knisbet knisbet 345 Jul 21 11:07 target2
@@ -35,7 +35,7 @@ total 20
 -rw-r--r-- 1 knisbet knisbet 426 Jul 21 11:07 target5
 
 
-❯ cat build/logs/latest/target5
+❯ cat _build/logs/latest/target5
 Name: target5
 Digest: sha256:ad6b8cb41668888a166913dd172726c108e2d4cbd56a0923cdaf944ff690710a
 Cached: false
@@ -57,9 +57,9 @@ Vertex: Error  -> Error on target 5
 ```
 # First Run
 ❯ go run mage.go dl
-Logs:    build/logs/latest (build/logs/20200721110930)
-Version:  v0.1.0-17-g29f9b23-dirty
-Build:    build/v0.1.0-17-g29f9b23-dirty
+Logs:    _build/logs/latest (_build/logs/20200721110930)
+Version: v0.1.0-17-g29f9b23-dirty
+Cache:   _build/magnet/github.com/gravitational/magnet/examples/multi_target
 [+] Building 5.4s (3/3) FINISHED
  => dl                                                                                                                        5.4s
  => => https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl 44.02MB / 44.02MB            5.4s
@@ -70,9 +70,9 @@ Build:    build/v0.1.0-17-g29f9b23-dirty
  
  # Second Run
  ❯ go run mage.go dl
-Logs:    build/logs/latest (build/logs/20200721110956)
-Version:  v0.1.0-17-g29f9b23-dirty
-Build:    build/v0.1.0-17-g29f9b23-dirty
+Logs:    _build/logs/latest (_build/logs/20200721110956)
+Version: v0.1.0-17-g29f9b23-dirty
+Cache:   _build/magnet/github.com/gravitational/magnet/examples/multi_target
 [+] Building 1.0s (3/3) FINISHED
  => dl                                                                                                                        1.0s
  => => https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl                              1.0s
@@ -82,8 +82,8 @@ Build:    build/v0.1.0-17-g29f9b23-dirty
  => => https://speed.hetzner.de/100MB.bin                                                                                     0.8s
 
 
- # Default Cache Directory
- ❯ ls -l build/cache/dl
+ # Cache Directory
+ ❯ ls -l _build/magnet/github.com/gravitational/magnet/examples/multi_target/dl
 total 247804
 -rw-rw-r-- 1 knisbet knisbet  44023808 Jul 21 11:09 sha256:5c19fb9d14bb061ea1b6156a40d12059017f0b271868e11de36ae5bcc2d031c7
 -rw------- 1 knisbet knisbet       117 Jul 21 11:09 sha256:5c19fb9d14bb061ea1b6156a40d12059017f0b271868e11de36ae5bcc2d031c7.wcache
@@ -94,7 +94,7 @@ total 247804
 
 # Etag is used to invalidate cache objects
 # sha2sum is recorded and validates the file hasn't changed when returned from the cache
-❯ cat build/cache/dl/sha256:5c19fb9d14bb061ea1b6156a40d12059017f0b271868e11de36ae5bcc2d031c7.wcache
+❯ cat _build/magnet/github.com/gravitational/magnet/examples/multi_target/dl/sha256:5c19fb9d14bb061ea1b6156a40d12059017f0b271868e11de36ae5bcc2d031c7.wcache
 etag: '"48e877517c5062f75ead7bf27c776ad1"'
 sha2sum: bb16739fcad964c197752200ff89d89aad7b118cb1de5725dc53fe924c40e3f7
  ```
@@ -105,9 +105,9 @@ sha2sum: bb16739fcad964c197752200ff89d89aad7b118cb1de5725dc53fe924c40e3f7
 
  ```
  ❯ go run mage.go dlParallel
-Logs:    build/logs/latest (build/logs/20200721111713)
-Version:  v0.1.0-17-g29f9b23-dirty
-Build:    build/v0.1.0-17-g29f9b23-dirty
+Logs:    _build/logs/latest (_build/logs/20200721111713)
+Version: v0.1.0-17-g29f9b23-dirty
+Cache:   _build/magnet/github.com/gravitational/magnet/examples/multi_target
 [+] Building 6.2s (3/3) FINISHED
  => ERROR downloads                                                                                                           6.2s
  => => http://example.com/non-existant-file                                                                                   6.2s
@@ -119,8 +119,8 @@ Build:    build/v0.1.0-17-g29f9b23-dirty
  => => https://speed.hetzner.de/100MB.bin                                                                                     0.8s
 ------
  > downloads:
-#1 1.017 url: https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl path: build/cache/dl/sha256:5c19fb9d14bb061ea1b6156a40d12059017f0b271868e11de36ae5bcc2d031c7 error:
-#1 1.153 url: http://ipv4.download.thinkbroadband.com/50MB.zip path: build/cache/dl/sha256:f3ba38f992736889d4ec1cc2abfd27de3b5a781ac9de88c74475c82736b99c1f error:
+#1 1.017 url: https://storage.googleapis.com/kubernetes-release/release/v1.18.0/bin/linux/amd64/kubectl path: _build/magnet/github.com/gravitational/magnet/examples/multi_target/dl/sha256:5c19fb9d14bb061ea1b6156a40d12059017f0b271868e11de36ae5bcc2d031c7 error:
+#1 1.153 url: http://ipv4.download.thinkbroadband.com/50MB.zip path: _build/magnet/github.com/gravitational/magnet/examples/multi_target/dl/sha256:f3ba38f992736889d4ec1cc2abfd27de3b5a781ac9de88c74475c82736b99c1f error:
 #1 1.154 url: http://example.com/non-existant-file path:  error:
 #1 1.154 ERROR REPORT:
 #1 1.154 Original Error: *trace.BadParameterError Unexpected status code: 404

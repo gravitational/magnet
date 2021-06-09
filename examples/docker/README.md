@@ -7,13 +7,13 @@ Build a docker container
 
 ```
 ❯ go run mage.go build
-Logs:    build/logs/latest (build/logs/20200723042630)
-Version:  v0.1.0-17-g29f9b23-dirty
-Build:    build/v0.1.0-17-g29f9b23-dirty
+Logs:    _build/logs/latest (_build/logs/20200723042630)
+Version: v0.1.0-17-g29f9b23-dirty
+Cache:   _build/magnet/github.com/gravitational/magnet/examples/docker
 [+] Building 2.2s (1/1) FINISHED
  => build                                                                                                                               2.2s
 
-❯ cat build/logs/latest/build
+❯ cat _build/logs/latest/build
 Name: build
 Digest: sha256:44575cf5b28512d75644bf54a517dcef304ff809fd511747621b4d64f19aac66
 Cached: false
@@ -79,14 +79,14 @@ Runs a command within a container, with a dependency on the build target.
 
 ```
 ❯ go run mage.go run
-Logs:    build/logs/latest (build/logs/20200723042741)
-Version:  v0.1.0-17-g29f9b23-dirty
-Build:    build/v0.1.0-17-g29f9b23-dirty
+Logs:    _build/logs/latest (_build/logs/20200723042741)
+Version: v0.1.0-17-g29f9b23-dirty
+Cache:   _build/magnet/github.com/gravitational/magnet/examples/docker
 [+] Building 2.3s (2/2) FINISHED
  => run                                                                                                                                 2.3s
  => build                                                                                                                               1.0s
 
-❯ cat build/logs/latest/run
+❯ cat _build/logs/latest/run
 Name: run
 Digest: sha256:acba25512100f80b56fc3ccd14c65be55d94800cda77585c5f41a887e398f9be
 Cached: false
@@ -126,13 +126,13 @@ Build a docker container, but use a narrow context that only includes needed fil
 
 ```
 ❯ go run mage.go context
-Logs:    build/logs/latest (build/logs/20200723042904)
-Version:  v0.1.0-17-g29f9b23-dirty
-Build:    build/v0.1.0-17-g29f9b23-dirty
+Logs:    _build/logs/latest (_build/logs/20200723042904)
+Version: v0.1.0-17-g29f9b23-dirty
+Cache:   _build/magnet/github.com/gravitational/magnet/examples/docker
 [+] Building 1.3s (1/1) FINISHED
  => context                                                                                                                             1.3s
 
-❯ cat build/logs/latest/context
+❯ cat _build/logs/latest/context
 Name: context
 Digest: sha256:ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4
 Cached: false

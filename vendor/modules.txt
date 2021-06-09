@@ -1,6 +1,8 @@
 # github.com/containerd/console v1.0.0
 ## explicit
 github.com/containerd/console
+# github.com/davecgh/go-spew v1.1.1
+github.com/davecgh/go-spew/spew
 # github.com/gravitational/trace v1.1.11
 ## explicit
 github.com/gravitational/trace
@@ -14,7 +16,7 @@ github.com/jonboulle/clockwork
 github.com/konsorten/go-windows-terminal-sequences
 # github.com/kr/pretty v0.1.0
 ## explicit
-# github.com/magefile/mage v1.9.0 => github.com/knisbet/mage v1.9.1-0.20200719045837-eabe8cda6d46
+# github.com/magefile/mage v1.9.0 => github.com/knisbet/mage v1.9.1-0.20210609142646-749a704341ac
 ## explicit
 github.com/magefile/mage/internal
 github.com/magefile/mage/mage
@@ -36,16 +38,18 @@ github.com/opencontainers/go-digest
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/sirupsen/logrus v1.6.0
 ## explicit
 github.com/sirupsen/logrus
 # github.com/stretchr/testify v1.5.1
 ## explicit
+github.com/stretchr/testify/assert
+github.com/stretchr/testify/require
 # github.com/tonistiigi/units v0.0.0-20180711220420-6950e57a87ea
 ## explicit
 github.com/tonistiigi/units
-# github.com/uudashr/go-module v0.0.0-20200529023307-c90a4239ad70
-## explicit
 # golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/mod v0.3.0
@@ -76,4 +80,4 @@ gopkg.in/yaml.v2
 # github.com/containerd/containerd => github.com/containerd/containerd v1.3.1-0.20200512144102-f13ba8f2f2fd
 # github.com/docker/docker => github.com/docker/docker v17.12.0-ce-rc1.0.20200310163718-4634ce647cf2+incompatible
 # github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
-# github.com/magefile/mage => github.com/knisbet/mage v1.9.1-0.20200719045837-eabe8cda6d46
+# github.com/magefile/mage => github.com/knisbet/mage v1.9.1-0.20210609142646-749a704341ac

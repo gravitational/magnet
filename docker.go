@@ -12,7 +12,7 @@ import (
 
 // DockerConfigCommon holds common configuration for docker commands.
 type DockerConfigCommon struct {
-	magnet *Magnet
+	target *MagnetTarget
 
 	// Env are environment variables to pass to the spawned docker command
 	Env map[string]string
@@ -44,10 +44,10 @@ type DockerConfigBuild struct {
 }
 
 // DockerBuild creates a command for building a docker container using buildkit.
-func (m *Magnet) DockerBuild() *DockerConfigBuild {
+func (m *MagnetTarget) DockerBuild() *DockerConfigBuild {
 	return &DockerConfigBuild{
 		DockerConfigCommon: DockerConfigCommon{
-			magnet: m,
+			target: m,
 			Env: map[string]string{
 				"DOCKER_BUILDKIT":   "1",
 				"PROGRESS_NO_TRUNC": "1",
@@ -245,7 +245,7 @@ func (m *DockerConfigBuild) Build(ctx context.Context, contextPath string) error
 
 	args = append(args, contextPath)
 
-	_, err := m.magnet.Exec().SetEnvs(m.Env).Run(ctx, "docker", args...)
+	_, err := m.target.Exec().SetEnvs(m.Env).Run(ctx, "docker", args...)
 
 	return trace.Wrap(err)
 }
@@ -261,9 +261,9 @@ type DockerBindMount struct {
 	Destination string
 	// Readonly causes the mount point to be mounted readonly
 	Readonly bool
-	// BindPropogation changes the bind propagation [rprivate, private, rshared, shared, rslave, slave]
+	// BindPropagation changes the bind propagation [rprivate, private, rshared, shared, rslave, slave]
 	// https://docs.docker.com/storage/bind-mounts/#configure-bind-propagation
-	BindPropogation string
+	BindPropagation string
 	// Consistency applies to Mac only and is ignored on other platforms. [consistent, delegated, cached]
 	Consistency string
 }
@@ -278,8 +278,8 @@ func (b DockerBindMount) arg() string {
 		arg += ",readonly"
 	}
 
-	if b.BindPropogation != "" {
-		arg += ",bind-propagation=" + b.BindPropogation
+	if b.BindPropagation != "" {
+		arg += ",bind-propagation=" + b.BindPropagation
 	}
 
 	if b.Consistency != "" {
@@ -314,10 +314,10 @@ type DockerConfigRun struct {
 }
 
 // DockerRun creates a command builder for running a docker container.
-func (m *Magnet) DockerRun() *DockerConfigRun {
+func (m *MagnetTarget) DockerRun() *DockerConfigRun {
 	return &DockerConfigRun{
 		DockerConfigCommon: DockerConfigCommon{
-			magnet: m,
+			target: m,
 		},
 	}
 }
@@ -382,9 +382,9 @@ func (m *DockerConfigRun) SetRemove(remove bool) *DockerConfigRun {
 	return m
 }
 
-// AddVolume attaches a filesystem mount to the container.
-func (m *DockerConfigRun) AddVolume(volume DockerBindMount) *DockerConfigRun {
-	m.Volumes = append(m.Volumes, volume)
+// AddVolume attaches a set of filesystem mounts to the container.
+func (m *DockerConfigRun) AddVolume(volumes ...DockerBindMount) *DockerConfigRun {
+	m.Volumes = append(m.Volumes, volumes...)
 	return m
 }
 
@@ -438,7 +438,7 @@ func (m *DockerConfigRun) Run(ctx context.Context, image, cmd string, cargs ...s
 	args = append(args, cmd)
 	args = append(args, cargs...)
 
-	_, err := m.magnet.Exec().Run(ctx, "docker", args...)
+	_, err := m.target.Exec().Run(ctx, "docker", args...)
 
 	return trace.Wrap(err)
 }

@@ -17,27 +17,50 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/gravitational/magnet"
+	//mage:import
+	_ "github.com/gravitational/magnet/common"
 	"github.com/gravitational/trace"
 
-	// mage:import
-	_ "github.com/gravitational/magnet/common"
+	"github.com/magefile/mage/mg"
 )
 
 //
-// configuration parameters can be set dynamically, like where to place the build directory
+// configuration parameters can be set dynamically, like where to place the logs/cache
 //
 
-var root = magnet.Root(magnet.Config{
+var root = mustRoot(magnet.Config{
 	PrintConfig: true,
+	LogDir:      "_build/logs",
+	CacheDir:    "_build",
+	ModulePath:  "github.com/gravitational/magnet/examples/golang",
+	Version:     version,
 })
+
+// Deinit schedules the clean up tasks to run when mage exits
+var Deinit = Shutdown
 
 var (
 	goVersion = magnet.E(magnet.EnvVar{
 		Key:     "GOLANG_VER",
 		Default: "1.13.12-stretch",
-		Short:   "Set the golang version to embed within the container",
+		Short:   "Set the Go version to embed within the container",
+	})
+	golangciVersion = magnet.E(magnet.EnvVar{
+		Key:     "GOLANGCI_VER",
+		Default: "v1.40.1",
+		Short:   "Set the golangci-lint version to embed within the container",
+	})
+	// version of the output / build container tag
+	// Can be overridden on command line with:
+	//
+	// $ VERSION=1.0 go run mage.go buildContainer
+	version = magnet.E(magnet.EnvVar{
+		Key:   "VERSION",
+		Short: "Set the output version",
 	})
 )
 
@@ -48,7 +71,7 @@ func Build() (err error) {
 	defer func() { t.Complete(err) }()
 
 	err = t.GolangBuild().
-		SetOutputPath("build/example.local").
+		SetOutputPath("_build/example.local").
 		Build(context.TODO(), "github.com/gravitational/magnet/examples/golang")
 	if err != nil {
 		return trace.Wrap(err)
@@ -56,33 +79,73 @@ func Build() (err error) {
 	return
 }
 
-// BuildContainer is an example mage target that builds a golang project within a docker container
+// BuildInContainer is an example mage target that builds a golang project within a docker container
 // Note: currently assumes project extracted to a GOPATH directory structure
-func BuildContainer() (err error) {
-	t := root.Target("build")
+func BuildInContainer(ctx context.Context) (err error) {
+	t := root.Target("buildInContainer")
 	defer func() { t.Complete(err) }()
 
+	mg.CtxDeps(ctx, BuildContainer)
+
 	err = t.GolangBuild().
-		SetOutputPath("build/example.container").
-		SetBuildContainer("golang:1.14").
-		Build(context.TODO(), "github.com/gravitational/magnet/examples/golang")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return
+		SetOutputPath("_build/example.container").
+		SetBuildContainerConfig(magnet.BuildContainer{
+			Name:   buildContainer(),
+			GOPath: "/gopath",
+		}).
+		Build(ctx, "github.com/gravitational/magnet/examples/golang")
+	return trace.Wrap(err)
 }
 
 // Test is an example mage target that runs the go compilers tests
 // Note: currently assumes project extracted to a GOPATH directory structure
-func Test() (err error) {
+func Test(ctx context.Context) (err error) {
 	t := root.Target("test")
 	defer func() { t.Complete(err) }()
 
+	mg.CtxDeps(ctx, BuildContainer)
+
 	err = t.GolangTest().
-		SetBuildContainer("golang:1.14").
-		Test(context.TODO(), "github.com/gravitational/magnet/examples/golang")
+		SetBuildContainerConfig(magnet.BuildContainer{
+			Name:   buildContainer(),
+			GOPath: "/gopath",
+		}).
+		Test(ctx, "github.com/gravitational/magnet/examples/golang")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return
+}
+
+// BuildContainer creates a docker container as a consistent Go environment to use for software builds.
+func BuildContainer(ctx context.Context) (err error) {
+	m := root.Target("buildContainer")
+	defer func() { m.Complete(err) }()
+
+	return m.DockerBuild().
+		AddTag(buildContainer()).
+		SetPull(true).
+		SetBuildArg("GOLANG_VER", goVersion).
+		SetBuildArg("GOLANGCI_VER", golangciVersion).
+		SetBuildArg("UID", fmt.Sprint(os.Getuid())).
+		SetBuildArg("GID", fmt.Sprint(os.Getgid())).
+		SetDockerfile("Dockerfile").
+		Build(ctx, ".")
+}
+
+// Shutdown executes magnet's clean up tasks (internal)
+func Shutdown() {
+	root.Shutdown()
+}
+
+func buildContainer() string {
+	return fmt.Sprint("example-builder:", root.Version)
+}
+
+func mustRoot(config magnet.Config) *magnet.Magnet {
+	root, err := magnet.Root(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	return root
 }

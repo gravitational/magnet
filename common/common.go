@@ -18,29 +18,25 @@ import (
 	"sort"
 
 	"github.com/gravitational/magnet"
+
 	"github.com/magefile/mage/mg"
 	"github.com/olekukonko/tablewriter"
 )
 
+// Help defines the utility namespace for help targets
 type Help mg.Namespace
 
-// HelpEnvs lists environment variables that can override build options
-func (Help) Envs() error {
+// Envs outputs the current environment configuration
+func (Help) Envs() (err error) {
 	var result [][]string
 
-	for key, value := range magnet.EnvVars {
+	for key, value := range magnet.Env() {
 		if value.Secret {
 			result = append(result, []string{key, "<redacted>", "", value.Short})
 		} else {
-			d := value.Default
-			if d == "" {
-				d = magnet.ImportEnvVars[key]
-			}
-
-			result = append(result, []string{key, value.Value, d, value.Short})
+			result = append(result, []string{key, value.Value, value.Default, value.Short})
 		}
 	}
-
 	sort.SliceStable(result, func(i, j int) bool {
 		return result[i][0] < result[j][0]
 	})
