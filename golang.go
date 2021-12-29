@@ -407,6 +407,7 @@ func (m *GolangConfigBuild) buildDocker(ctx context.Context, packages ...string)
 		SetGID(m.User.gid()).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
+		SetEnv("GOMODCACHE", "/cache/go/pkg/mod").
 		SetEnvs(m.Env).
 		SetWorkDir(m.paths.containerPath).
 		AddVolume(DockerBindMount{
@@ -511,6 +512,7 @@ func (m *GolangConfigTest) testDocker(ctx context.Context, packages ...string) e
 		SetGID(m.User.gid()).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
+		SetEnv("GOMODCACHE", "/cache/go/pkg/mod").
 		SetEnvs(m.Env).
 		SetWorkDir(m.paths.containerPath).
 		SetNetwork("host").
@@ -816,6 +818,7 @@ func (m *GolangConfigCover) docker(ctx context.Context) error {
 		SetGID(m.User.gid()).
 		SetEnv("XDG_CACHE_HOME", "/cache").
 		SetEnv("GOCACHE", "/cache/go").
+		SetEnv("GOMODCACHE", "/cache/go/pkg/mod").
 		SetEnvs(m.Env).
 		SetWorkDir(m.paths.containerPath).
 		AddVolume(DockerBindMount{
